@@ -377,10 +377,11 @@ h2 {
 
 .optional { opacity: 0.75; font-weight: 400; }
 
-/* Shared field chrome — name, email, url all match */
+/* Shared field chrome — name, email, url, password all match */
 input[type="text"],
 input[type="email"],
 input[type="url"],
+input[type="password"],
 .form-grid input {
   display: block;
   width: 100%;
