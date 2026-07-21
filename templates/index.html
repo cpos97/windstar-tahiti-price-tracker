@@ -115,7 +115,7 @@
       <div class="delta up">↑ rose {{ ((c.current_price - c.previous_price) / c.previous_price * 100) | round(1) }}%</div>
     {% endif %}
     <div class="meta">
-      Last checked: {{ c.last_checked | fmt_dt }}
+      Last checked: {{ c.last_checked | fmt_last_checked }}
       {% if c.last_error %}<span class="error-text"> · {{ c.last_error[:80] }}</span>{% endif %}
     </div>
 
@@ -186,7 +186,7 @@
       </div>
     </div>
     <div class="meta">
-      Last checked: {{ c.cabin_last_checked | fmt_dt }}
+      Last checked: {{ c.cabin_last_checked | fmt_last_checked }}
     </div>
 
     <div class="price-history">

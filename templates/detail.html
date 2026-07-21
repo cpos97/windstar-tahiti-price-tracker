@@ -52,7 +52,7 @@
 <section class="card table-wrap">
   <h2>Cabin availability</h2>
   <p class="muted">
-    {% if cabin_checked_at %}Last checked {{ cabin_checked_at | fmt_dt }}{% endif %}
+    {% if cabin_checked_at %}Last checked {{ cabin_checked_at | fmt_last_checked }}{% endif %}
     &middot; Ocean View Suite categories only, checked once daily
   </p>
   <table>

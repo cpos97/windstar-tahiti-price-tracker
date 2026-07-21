@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -53,8 +54,39 @@ def fmt_dt(value: datetime | None) -> str:
     return value.strftime("%b %d, %Y %H:%M %Z")
 
 
+EASTERN = ZoneInfo("America/New_York")
+
+
+def _relative_time(value: datetime) -> str:
+    now = datetime.now(timezone.utc)
+    seconds = (now - value).total_seconds()
+    if seconds < 60:
+        return "just now"
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{minutes} min ago"
+    hours = int(minutes // 60)
+    if hours < 24:
+        return f"{hours} hr ago" if hours == 1 else f"{hours} hrs ago"
+    days = int(hours // 24)
+    return f"{days} day ago" if days == 1 else f"{days} days ago"
+
+
+def fmt_last_checked(value: datetime | None) -> str:
+    """'12 min ago (2:15 PM ET / 18:15 UTC)' — relative time plus both zones."""
+    if value is None:
+        return "Never"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    ago = _relative_time(value)
+    et_str = value.astimezone(EASTERN).strftime("%-I:%M %p ET")
+    utc_str = value.astimezone(timezone.utc).strftime("%H:%M UTC")
+    return f"{ago} ({et_str} / {utc_str})"
+
+
 templates.env.filters["money"] = money
 templates.env.filters["fmt_dt"] = fmt_dt
+templates.env.filters["fmt_last_checked"] = fmt_last_checked
 
 
 def _static_version() -> int:
