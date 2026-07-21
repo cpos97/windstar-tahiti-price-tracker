@@ -1,0 +1,141 @@
+# Runs every 30 min even when your Mac is off (GitHub-hosted runners).
+#
+# Setup secrets (Settings → Secrets → Actions):
+#   Required: PERX_USERNAME, PERX_PASSWORD
+#   Email (Gmail — sends to anyone): EMAIL_PROVIDER=smtp, SMTP_USER, SMTP_PASSWORD
+#   Recommended: ALERT_RECIPIENTS, EMAIL_FROM, DEPARTURE_DATE, DASHBOARD_URL
+#   Optional: ID90_EMAIL, ID90_PASSWORD, RESEND_API_KEY (fallback only)
+#
+# Schedule: every 30 min at :07/:37 UTC — offset from :00/:30 since those are
+# the most congested minutes across all of GitHub Actions, which can delay
+# "on the dot" schedules by hours during peak load.
+
+name: Hourly cruise price check
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: hourly-price-check
+  cancel-in-progress: false
+
+jobs:
+  check-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m playwright install chromium --with-deps
+
+      - name: Restore SQLite database cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/tracker.db
+          key: tracker-db-${{ github.run_id }}
+          restore-keys: |
+            tracker-db-
+
+      - name: Restore browser session cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/browser_session.json
+          key: browser-session-${{ github.run_id }}
+          restore-keys: |
+            browser-session-
+
+      - name: Write environment file
+        env:
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_RECIPIENTS: ${{ secrets.ALERT_RECIPIENTS }}
+          PERX_USERNAME: ${{ secrets.PERX_USERNAME }}
+          PERX_PASSWORD: ${{ secrets.PERX_PASSWORD }}
+          ID90_EMAIL: ${{ secrets.ID90_EMAIL }}
+          ID90_PASSWORD: ${{ secrets.ID90_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          DEPARTURE_DATE: ${{ secrets.DEPARTURE_DATE }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          INTRO_CC_EMAIL: ${{ secrets.INTRO_CC_EMAIL }}
+          EMAIL_SANDBOX: ${{ secrets.EMAIL_SANDBOX }}
+        run: |
+          mkdir -p data
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          def q(v: str) -> str:
+              # Quote values that may contain # & spaces special chars
+              v = v or ""
+              return f'"{v}"'
+
+          # Prefer Gmail SMTP so hourly drops can reach the whole family
+          provider = (os.environ.get("EMAIL_PROVIDER") or "smtp").strip() or "smtp"
+          smtp_user = os.environ.get("SMTP_USER") or ""
+          email_from = (
+              os.environ.get("EMAIL_FROM")
+              or f"Windstar Tahiti Price Tracker <{smtp_user}>"
+          )
+          lines = [
+              f"EMAIL_PROVIDER={provider}",
+              f"RESEND_API_KEY={os.environ.get('RESEND_API_KEY','')}",
+              f"SMTP_HOST={os.environ.get('SMTP_HOST') or 'smtp.gmail.com'}",
+              f"SMTP_PORT={os.environ.get('SMTP_PORT') or '587'}",
+              f"SMTP_USER={smtp_user}",
+              f"SMTP_PASSWORD={q(os.environ.get('SMTP_PASSWORD','').replace(' ', ''))}",
+              f"EMAIL_FROM={email_from}",
+              f"ALERT_EMAIL={os.environ.get('ALERT_EMAIL','')}",
+              f"ALERT_RECIPIENTS={os.environ.get('ALERT_RECIPIENTS','')}",
+              f"PERX_USERNAME={os.environ.get('PERX_USERNAME','')}",
+              f"PERX_PASSWORD={q(os.environ.get('PERX_PASSWORD',''))}",
+              f"ID90_EMAIL={os.environ.get('ID90_EMAIL','')}",
+              f"ID90_PASSWORD={q(os.environ.get('ID90_PASSWORD',''))}",
+              f"DEPARTURE_DATE={os.environ.get('DEPARTURE_DATE') or '2027-05-20'}",
+              f"DASHBOARD_URL={os.environ.get('DASHBOARD_URL','')}",
+              f"INTRO_CC_EMAIL={os.environ.get('INTRO_CC_EMAIL','')}",
+              f"EMAIL_SANDBOX={os.environ.get('EMAIL_SANDBOX') or '0'}",
+              "PLAYWRIGHT_STORAGE_STATE=data/browser_session.json",
+          ]
+          Path(".env").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print("Wrote .env for hourly check (secrets not printed)")
+          print(f"EMAIL_PROVIDER={provider} SMTP_USER={smtp_user}")
+          PY
+
+      - name: Seed cruise rows if database is empty
+        run: python scripts/ensure_cruises.py
+
+      - name: Run hourly price check (login + scrape + email on drop)
+        run: python scripts/hourly_check.py --refresh-login
+
+      - name: Save SQLite database cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/tracker.db
+          key: tracker-db-${{ github.run_id }}
+
+      - name: Save browser session cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/browser_session.json
+          key: browser-session-${{ github.run_id }}

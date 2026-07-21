@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Windstar Tahiti Price Tracker{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version() }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-icon">🌴</span>
+      <span>
+        Windstar Tahiti
+        <span class="brand-sub">Family Trip · Price Tracker</span>
+      </span>
+    </a>
+    <nav>
+      <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+      <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    Windstar · Star Breeze · French Polynesia · checks every {{ check_interval | default(60) }} min ·
+    {% if email_ok %}
+      <span class="pill ok">Email alerts on</span>
+    {% else %}
+      <span class="pill warn">Email not configured</span>
+    {% endif %}
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

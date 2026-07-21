@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Windstar Tahiti · Family Voyage Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ocean: #0a3d5c;
+      --turquoise: #2ec4b6;
+      --sand: #f5efe6;
+      --text: #1b2b3a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Outfit, system-ui, sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(160deg, rgba(10, 61, 92, 0.88), rgba(15, 76, 117, 0.75)),
+        radial-gradient(ellipse at 20% 0%, #48cae4 0%, transparent 50%),
+        var(--ocean);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+    }
+    .card {
+      max-width: 560px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 20px;
+      padding: 2rem 1.75rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+    }
+    .eyebrow {
+      font-size: 0.75rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #1a6b9a;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+    }
+    h1 {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 2rem;
+      margin: 0 0 0.75rem;
+      color: var(--ocean);
+      line-height: 1.15;
+    }
+    p { margin: 0 0 1rem; line-height: 1.55; color: #334155; }
+    .pill {
+      display: inline-block;
+      background: rgba(46, 196, 182, 0.15);
+      color: #0d6b63;
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    ul { margin: 0 0 1.25rem; padding-left: 1.2rem; color: #475569; }
+    li { margin-bottom: 0.4rem; }
+    code {
+      font-size: 0.85em;
+      background: rgba(10, 61, 92, 0.08);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+    a.btn {
+      display: inline-flex;
+      background: linear-gradient(135deg, #1a6b9a, var(--ocean));
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      padding: 0.75rem 1.2rem;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p class="eyebrow">Postma &amp; Wozniak Family Voyage</p>
+    <h1>Tahiti Expedition · Party of 4</h1>
+    <span class="pill">Static landing (Vercel / Netlify free)</span>
+    <p>
+      This page can be hosted on free static platforms. The full interactive tracker
+      (dashboard, charts, invite form, Playwright price scrapes) is a
+      <strong>Python FastAPI app</strong> and does not run on Vercel/Netlify serverless free tiers.
+    </p>
+    <ul>
+      <li><strong>24/7 price checks</strong> already run on <strong>GitHub Actions</strong> (hourly).</li>
+      <li><strong>Dashboard UI</strong> runs locally with <code>python run.py</code> or on Render via Docker.</li>
+      <li>Secrets use environment variables — never committed to git.</li>
+    </ul>
+    <p>
+      See the private repo for Actions status and <code>DEPLOY.md</code> for full setup.
+    </p>
+    <a class="btn" href="https://github.com/cpos97/windstar-tahiti-price-tracker/actions">View hourly check runs</a>
+  </main>
+</body>
+</html>

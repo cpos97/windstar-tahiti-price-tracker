@@ -1,0 +1,22 @@
+# Netlify free tier: static site only for this project.
+# The full FastAPI + Playwright tracker cannot run on Netlify Functions
+# (browser automation + long scrapes + SQLite are not supported).
+#
+# Free 24/7 price checks: GitHub Actions (.github/workflows/hourly-price-check.yml)
+# Full web UI in the cloud: use Render + Dockerfile (see DEPLOY.md)
+
+[build]
+  # No compile step — static landing page in /public
+  publish = "public"
+  command = "echo 'Static landing only — app backend is Python/Playwright (see DEPLOY.md)'"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Optional: scheduled build hook to *ping* an external API if you host
+# the FastAPI app elsewhere. Netlify cannot run our Playwright scraper.
+# [build.environment]
+#   # Set secrets in Netlify UI → Site settings → Environment variables

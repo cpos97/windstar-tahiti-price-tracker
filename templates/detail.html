@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}{{ cruise.name }} · Windstar Tahiti{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<p class="breadcrumb"><a href="/">← Dashboard</a></p>
+
+<section class="hero">
+  <div>
+    <h1>{{ cruise.name }}</h1>
+    <p class="muted break-all"><a href="{{ cruise.url }}" target="_blank" rel="noopener">{{ cruise.url }}</a></p>
+  </div>
+  <div class="btn-row">
+    <form action="/cruises/{{ cruise.id }}/check" method="post">
+      <button class="btn primary" type="submit">Check price now</button>
+    </form>
+    <form action="/cruises/{{ cruise.id }}/toggle" method="post">
+      <button class="btn secondary" type="submit">
+        {% if cruise.active %}Pause{% else %}Resume{% endif %}
+      </button>
+    </form>
+  </div>
+</section>
+
+{% if cruise.last_error %}
+<div class="banner warn">Last error: {{ cruise.last_error }}</div>
+{% endif %}
+
+<div class="stats">
+  <div class="stat card">
+    <div class="label">Current price</div>
+    <div class="price">{{ cruise.current_price | money(cruise.currency) }}</div>
+  </div>
+  <div class="stat card">
+    <div class="label">Previous</div>
+    <div class="price-sm">{{ cruise.previous_price | money(cruise.currency) }}</div>
+  </div>
+  <div class="stat card">
+    <div class="label">Lowest seen</div>
+    <div class="price-sm low">{{ cruise.lowest_price | money(cruise.currency) }}</div>
+  </div>
+  <div class="stat card">
+    <div class="label">Highest seen</div>
+    <div class="price-sm">{{ cruise.highest_price | money(cruise.currency) }}</div>
+  </div>
+</div>
+
+{% if cabin_availability %}
+<section class="card table-wrap">
+  <h2>Cabin availability</h2>
+  <p class="muted">
+    {% if cabin_checked_at %}Last checked {{ cabin_checked_at | fmt_dt }}{% endif %}
+    &middot; Ocean View Suite categories only, checked once daily
+  </p>
+  <table>
+    <thead>
+      <tr><th>Category</th><th>Cabin type</th><th>Available</th></tr>
+    </thead>
+    <tbody>
+      {% for c in cabin_availability %}
+      <tr>
+        <td>{{ c.category_code }}</td>
+        <td>{{ c.category_name }}</td>
+        <td>{{ c.available }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if cabin_chart_series|length >= 1 %}
+  <div style="margin-top:1rem;display:flex;justify-content:space-between;align-items:baseline">
+    <span class="price-history-title" id="cabinChartTitle">Total ocean view cabins available</span>
+    <button type="button" class="btn secondary btn-sm" id="cabinChartToggle">Show by category</button>
+  </div>
+  <canvas id="cabinChart" height="100" style="margin-top:0.5rem"></canvas>
+  {% endif %}
+  <form action="/cruises/{{ cruise.id }}/check-cabins" method="post" style="margin-top:0.75rem">
+    <button type="submit" class="btn">Check cabin availability now</button>
+  </form>
+</section>
+{% elif "id90travel" in cruise.url %}
+<section class="card">
+  <h2>Cabin availability</h2>
+  <p class="muted">Not checked yet — checked automatically once a day, or run it now.</p>
+  <form action="/cruises/{{ cruise.id }}/check-cabins" method="post">
+    <button type="submit" class="btn">Check cabin availability now</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Edit cruise</h2>
+  <form class="form-grid" action="/cruises/{{ cruise.id }}/update" method="post">
+    <label>
+      Name
+      <input type="text" name="name" value="{{ cruise.name }}" required />
+    </label>
+    <label class="span-2">
+      Booking URL
+      <input type="url" name="url" value="{{ cruise.url }}" required />
+    </label>
+    <label class="span-2">
+      CSS selector <span class="optional">(optional)</span>
+      <input type="text" name="css_selector" value="{{ cruise.css_selector or '' }}" placeholder="Leave blank for auto-detect" />
+    </label>
+    <div class="form-actions span-2">
+      <button type="submit" class="btn primary">Save changes</button>
+    </div>
+  </form>
+</section>
+
+{% if history %}
+<section class="card table-wrap">
+  <h2>Recent readings</h2>
+  <table>
+    <thead>
+      <tr><th>When</th><th>Price</th><th>Raw text</th></tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.checked_at | fmt_dt }}</td>
+        <td>{{ h.price | money(cruise.currency) }}</td>
+        <td class="muted">{{ h.raw_text or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if alerts %}
+<section class="card table-wrap">
+  <h2>Alerts sent</h2>
+  <table>
+    <thead>
+      <tr><th>When</th><th>Change</th><th>To</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for a in alerts %}
+      <tr>
+        <td>{{ a.created_at | fmt_dt }}</td>
+        <td class="down">${{ '%.2f'|format(a.old_price) }} → ${{ '%.2f'|format(a.new_price) }}</td>
+        <td>{{ a.sent_to }}</td>
+        <td>{% if a.success %}<span class="pill ok">Sent</span>{% else %}<span class="pill warn">{{ a.message }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card danger-zone">
+  <h2>Danger zone</h2>
+  <p class="muted">Permanently delete this cruise and all price history.</p>
+  <form action="/cruises/{{ cruise.id }}/delete" method="post" onsubmit="return confirm('Delete this cruise and its history?')">
+    <button type="submit" class="btn danger">Delete cruise</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if cabin_chart_series|length >= 1 %}
+<script>
+  const cabinSeries = {{ cabin_chart_series | tojson }};
+  const cabinColors = ['#1a6b9a', '#2ec4b6', '#e07a5f', '#8a7560', '#b85c38'];
+
+  // Union of every timestamp across all categories, sorted chronologically
+  const cabinTimestamps = Array.from(
+    new Set(cabinSeries.flatMap(s => s.points.map(p => p.x)))
+  ).sort();
+
+  const cabinLabels = cabinTimestamps.map(t => {
+    const d = new Date(t);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  });
+
+  // Forward-fill each category so a change in one category doesn't create a
+  // gap in the others — availability holds at its last known value until
+  // the next actual reading, it doesn't reset to nothing.
+  const cabinFilled = cabinSeries.map(s => {
+    const byTimestamp = Object.fromEntries(s.points.map(p => [p.x, p.y]));
+    let last = null;
+    return cabinTimestamps.map(t => {
+      if (byTimestamp[t] !== undefined) last = byTimestamp[t];
+      return last;
+    });
+  });
+
+  const cabinByCategoryDatasets = cabinSeries.map((s, i) => ({
+    label: s.label,
+    data: cabinFilled[i],
+    borderColor: cabinColors[i % cabinColors.length],
+    backgroundColor: cabinColors[i % cabinColors.length],
+    fill: false,
+    tension: 0.3,
+    pointRadius: cabinTimestamps.length > 40 ? 0 : 3,
+  }));
+
+  const cabinTotalData = cabinTimestamps.map((_, idx) => {
+    const vals = cabinFilled.map(arr => arr[idx]).filter(v => v !== null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  });
+
+  const cabinTotalDataset = [{
+    label: 'Total available',
+    data: cabinTotalData,
+    borderColor: '#2ec4b6',
+    backgroundColor: 'rgba(46, 196, 182, 0.18)',
+    fill: true,
+    tension: 0.3,
+    pointRadius: cabinTimestamps.length > 40 ? 0 : 4,
+  }];
+
+  const cabinChart = new Chart(document.getElementById('cabinChart'), {
+    type: 'line',
+    data: { labels: cabinLabels, datasets: cabinTotalDataset },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#5a6d7e', maxTicksLimit: 8 },
+          grid: { color: 'rgba(15, 76, 117, 0.08)' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#5a6d7e', precision: 0 },
+          grid: { color: 'rgba(15, 76, 117, 0.08)' }
+        }
+      }
+    }
+  });
+
+  let cabinShowingTotal = true;
+  const cabinToggleBtn = document.getElementById('cabinChartToggle');
+  const cabinTitleEl = document.getElementById('cabinChartTitle');
+  if (cabinToggleBtn) {
+    cabinToggleBtn.addEventListener('click', function () {
+      cabinShowingTotal = !cabinShowingTotal;
+      if (cabinShowingTotal) {
+        cabinChart.data.datasets = cabinTotalDataset;
+        cabinChart.options.plugins.legend.display = false;
+        cabinTitleEl.textContent = 'Total ocean view cabins available';
+        cabinToggleBtn.textContent = 'Show by category';
+      } else {
+        cabinChart.data.datasets = cabinByCategoryDatasets;
+        cabinChart.options.plugins.legend.display = true;
+        cabinTitleEl.textContent = 'Cabins available by category';
+        cabinToggleBtn.textContent = 'Show total';
+      }
+      cabinChart.update();
+    });
+  }
+</script>
+{% endif %}
+{% endblock %}

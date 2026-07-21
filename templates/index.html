@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Windstar Tahiti Price Tracker{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-title-block">
+    <h1 class="hero-title">Postma &amp; Wozniak Family Voyage</h1>
+    <p class="hero-subtitle">Tahiti Expedition • Party of 4</p>
+  </div>
+  <form action="/check-all" method="post" id="check-all-form">
+    <button type="submit" class="btn secondary" id="check-all-btn"
+      {% if check_running %}disabled{% endif %}>
+      {% if check_running %}Checking…{% else %}Check all now{% endif %}
+    </button>
+  </form>
+</section>
+
+{% if flash %}
+<div class="banner {{ flash.type }}" id="check-flash">{{ flash.msg }}</div>
+{% elif check_running %}
+<div class="banner ok" id="check-flash">{{ check_message or 'Checking prices on all booking sites…' }}</div>
+{% endif %}
+
+<section class="trip-banner">
+  <div class="card countdown-card">
+    <p class="eyebrow">Countdown to departure</p>
+    <h2>Days until we sail</h2>
+    <div class="countdown-grid" id="countdown"
+         data-departure="{{ departure_iso }}">
+      <div class="countdown-unit">
+        <span class="num" data-unit="days">—</span>
+        <span class="unit-label">Days</span>
+      </div>
+      <div class="countdown-unit">
+        <span class="num" data-unit="hours">—</span>
+        <span class="unit-label">Hours</span>
+      </div>
+      <div class="countdown-unit">
+        <span class="num" data-unit="mins">—</span>
+        <span class="unit-label">Mins</span>
+      </div>
+      <div class="countdown-unit">
+        <span class="num" data-unit="secs">—</span>
+        <span class="unit-label">Secs</span>
+      </div>
+    </div>
+    <p class="countdown-meta">
+      Departure: <strong>{{ departure_label }}</strong> · Windstar Star Breeze
+    </p>
+  </div>
+
+  <div class="card highlights-card">
+    <p class="eyebrow">Trip highlights</p>
+    <h2>South Pacific awaits</h2>
+    <ul class="highlights-list">
+      <li><span class="dot"></span><span>Papeete, Tahiti — where the adventure begins</span></li>
+      <li><span class="dot"></span><span>Fakarava &amp; Rangiroa — turquoise atoll lagoons</span></li>
+      <li><span class="dot"></span><span>Bora Bora — iconic peaks &amp; crystal water</span></li>
+      <li><span class="dot"></span><span>Moorea &amp; Huahine — lush volcanic shores</span></li>
+    </ul>
+    <p class="highlights-tagline">“Tahiti, Moorea, and Bora Bora await!”</p>
+  </div>
+</section>
+
+{% if not email_ok %}
+<div class="banner warn">
+  Email alerts are not set up yet.
+  <a href="/settings">Open Settings</a> so the family gets notified on price drops.
+</div>
+{% endif %}
+
+<section class="section-head">
+  <h2>Tracked booking sites</h2>
+  <span class="muted">{{ cruises|length }} sources</span>
+</section>
+
+{% if not cruises %}
+<div class="empty card">
+  <p>No cruises yet. Paste a booking page URL below to start tracking.</p>
+</div>
+{% else %}
+<div class="cruise-grid">
+  {% for c in cruises %}
+  {% set hist = history_by_cruise.get(c.id, []) %}
+  <article class="cruise-card card">
+    <div class="cruise-card-top">
+      <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">{{ c.name }}</a></h3>
+      {% if c.active %}
+        <span class="pill ok">Watching</span>
+      {% else %}
+        <span class="pill muted-pill">Paused</span>
+      {% endif %}
+    </div>
+    <div class="price-row">
+      <div>
+        <div class="label">Current</div>
+        <div class="price">{{ c.current_price | money(c.currency) }}</div>
+      </div>
+      <div>
+        <div class="label">Previous</div>
+        <div class="price-sm">{{ c.previous_price | money(c.currency) }}</div>
+      </div>
+      <div>
+        <div class="label">Lowest</div>
+        <div class="price-sm low">{{ c.lowest_price | money(c.currency) }}</div>
+      </div>
+    </div>
+    {% if c.previous_price and c.current_price and c.current_price < c.previous_price %}
+      <div class="delta down">↓ dropped {{ ((c.previous_price - c.current_price) / c.previous_price * 100) | round(1) }}%</div>
+    {% elif c.previous_price and c.current_price and c.current_price > c.previous_price %}
+      <div class="delta up">↑ rose {{ ((c.current_price - c.previous_price) / c.previous_price * 100) | round(1) }}%</div>
+    {% endif %}
+    <div class="meta">
+      Last checked: {{ c.last_checked | fmt_dt }}
+      {% if c.last_error %}<span class="error-text"> · {{ c.last_error[:80] }}</span>{% endif %}
+    </div>
+
+    <div class="price-history">
+      <div class="price-history-head">
+        <span class="price-history-title">Price History</span>
+        <span class="price-history-count">{{ hist|length }} reading{% if hist|length != 1 %}s{% endif %}</span>
+      </div>
+
+      {% if hist|length >= 1 %}
+      <div class="chart-wrap">
+        <canvas
+          id="hist-chart-{{ c.id }}"
+          class="hist-chart"
+          height="120"
+          data-history='{{ hist | tojson }}'
+          data-currency="{{ c.currency }}"
+        ></canvas>
+      </div>
+
+      <ul class="price-timeline">
+        {% for h in hist|reverse %}
+          {% if loop.index <= 6 %}
+          <li class="price-timeline-item">
+            <span class="tl-dot"></span>
+            <span class="tl-date">📅 {{ h.label }}</span>
+            <span class="tl-price">{{ h.price | money(c.currency) }}</span>
+          </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+      {% if hist|length > 6 %}
+      <p class="price-history-more">
+        <a href="/cruises/{{ c.id }}">View full history →</a>
+      </p>
+      {% endif %}
+      {% else %}
+      <p class="price-history-empty">No history yet — run a price check to start the log.</p>
+      {% endif %}
+    </div>
+
+    <div class="cruise-card-footer">
+      <a class="btn secondary btn-sm" href="/cruises/{{ c.id }}">Open details</a>
+    </div>
+  </article>
+  {% endfor %}
+
+  {% for c in cruises %}
+  {% set cabin_rows = cabin_availability_by_cruise.get(c.id) %}
+  {% if cabin_rows %}
+  <article class="cruise-card card cruise-card-cabin">
+    <div class="cruise-card-top">
+      <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">Cabin Availability</a></h3>
+      <span class="pill ok">Ocean View Suites</span>
+    </div>
+    <div class="price-row">
+      <div>
+        <div class="label">Total available</div>
+        <div class="price">{{ cabin_rows | sum(attribute='available') }}</div>
+      </div>
+      <div>
+        <div class="label">Categories tracked</div>
+        <div class="price-sm">{{ cabin_rows | length }}</div>
+      </div>
+      <div>
+        <div class="label">Source</div>
+        <div class="price-sm low">ID90</div>
+      </div>
+    </div>
+    <div class="meta">
+      Last checked: {{ c.cabin_last_checked | fmt_dt }}
+    </div>
+
+    <div class="price-history">
+      <div class="price-history-head">
+        <span class="price-history-title">By category</span>
+        <span class="price-history-count">{{ cabin_rows | length }} categories</span>
+      </div>
+      <ul class="price-timeline">
+        {% for cab in cabin_rows %}
+        <li class="price-timeline-item">
+          <span class="tl-dot"></span>
+          <span class="tl-date">{{ cab.category_code }} · {{ cab.category_name }}</span>
+          <span class="tl-price">{{ cab.available }} left</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="cruise-card-footer">
+      <a class="btn secondary btn-sm" href="/cruises/{{ c.id }}">Open details</a>
+    </div>
+  </article>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<section class="card" style="margin-top:1.5rem">
+  <h2>Add another booking source</h2>
+  <form class="form-grid" action="/cruises" method="post">
+    <label>
+      Name
+      <input type="text" name="name" placeholder="e.g. ID90 · Star Breeze · May 2027" required />
+    </label>
+    <label class="span-2">
+      Booking URL
+      <input type="url" name="url" placeholder="https://…" required />
+    </label>
+    <label class="span-2">
+      CSS selector <span class="optional">(optional — only if auto-detect fails)</span>
+      <input type="text" name="css_selector" placeholder="e.g. span.price.min" />
+    </label>
+    <div class="form-actions span-2">
+      <label class="checkbox">
+        <input type="checkbox" name="check_now" value="yes" checked />
+        Check price immediately after adding
+      </label>
+      <button type="submit" class="btn primary">Add cruise</button>
+    </div>
+  </form>
+</section>
+
+{% if recent_alerts %}
+<section class="section-head" style="margin-top:2rem">
+  <h2>Recent price-drop alerts</h2>
+</section>
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Cruise</th>
+        <th>Change</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in recent_alerts %}
+      <tr>
+        <td>{{ a.created_at | fmt_dt }}</td>
+        <td><a href="/cruises/{{ a.cruise_id }}">#{{ a.cruise_id }}</a></td>
+        <td class="down">${{ '%.2f'|format(a.old_price) }} → ${{ '%.2f'|format(a.new_price) }}</td>
+        <td>{% if a.success %}<span class="pill ok">Sent</span>{% else %}<span class="pill warn">Failed</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const root = document.getElementById('countdown');
+  if (root) {
+    const target = new Date(root.dataset.departure).getTime();
+    const daysEl = root.querySelector('[data-unit="days"]');
+    const hoursEl = root.querySelector('[data-unit="hours"]');
+    const minsEl = root.querySelector('[data-unit="mins"]');
+    const secsEl = root.querySelector('[data-unit="secs"]');
+
+    function tick() {
+      const now = Date.now();
+      let diff = Math.max(0, target - now);
+      const days = Math.floor(diff / 86400000);
+      diff -= days * 86400000;
+      const hours = Math.floor(diff / 3600000);
+      diff -= hours * 3600000;
+      const mins = Math.floor(diff / 60000);
+      diff -= mins * 60000;
+      const secs = Math.floor(diff / 1000);
+      daysEl.textContent = days;
+      hoursEl.textContent = String(hours).padStart(2, '0');
+      minsEl.textContent = String(mins).padStart(2, '0');
+      secsEl.textContent = String(secs).padStart(2, '0');
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // Check-all: disable button + poll until background job finishes
+  const form = document.getElementById('check-all-form');
+  const btn = document.getElementById('check-all-btn');
+  if (form && btn) {
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+    });
+  }
+
+  const shouldPoll = {{ 'true' if check_running or request.query_params.get('checking') == '1' else 'false' }};
+  if (shouldPoll) {
+    let tries = 0;
+    const maxTries = 180; // ~6 minutes — price checks + cabin availability checks combined
+    const iv = setInterval(async function () {
+      tries += 1;
+      try {
+        const res = await fetch('/api/check-status');
+        const data = await res.json();
+        const flash = document.getElementById('check-flash');
+        if (flash && data.message) flash.textContent = data.message;
+        if (!data.running) {
+          clearInterval(iv);
+          // Reload so last-checked times and prices refresh
+          window.location.replace('/?checked=1');
+        }
+      } catch (e) { /* keep polling */ }
+      if (tries >= maxTries) {
+        clearInterval(iv);
+        window.location.replace('/?checked=1');
+      }
+    }, 2000);
+  }
+
+  // Price history sparkline charts (Chart.js)
+  document.querySelectorAll('.hist-chart').forEach(function (canvas) {
+    let hist = [];
+    try {
+      hist = JSON.parse(canvas.dataset.history || '[]');
+    } catch (e) {
+      return;
+    }
+    if (!hist.length || typeof Chart === 'undefined') return;
+
+    const labels = hist.map(function (h) {
+      if (!h.checked_at) return h.date_short || '';
+      const d = new Date(h.checked_at);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    });
+    const prices = hist.map(function (h) { return h.price; });
+    // Single-point charts need a flat line to render nicely
+    const chartLabels = prices.length === 1 ? [labels[0], labels[0]] : labels;
+    const chartPrices = prices.length === 1 ? [prices[0], prices[0]] : prices;
+
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: chartLabels,
+        datasets: [{
+          label: 'Price',
+          data: chartPrices,
+          borderColor: '#2ec4b6',
+          backgroundColor: 'rgba(46, 196, 182, 0.16)',
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.35,
+          pointRadius: chartPrices.length <= 8 ? 4 : 0,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#7fdbda',
+          pointBorderColor: '#0a3d5c',
+          pointBorderWidth: 1.5,
+          shadowOffsetX: 0,
+          shadowOffsetY: 0,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(10, 61, 92, 0.92)',
+            titleFont: { size: 12 },
+            bodyFont: { size: 13, weight: '600' },
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              label: function (ctx) {
+                return '$' + Number(ctx.raw).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                });
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#5a6d7e',
+              maxTicksLimit: 5,
+              font: { size: 10, weight: '500' }
+            },
+            grid: { display: false },
+            border: { display: false }
+          },
+          y: {
+            ticks: {
+              color: '#5a6d7e',
+              font: { size: 10, weight: '500' },
+              callback: function (v) { return '$' + v; },
+              maxTicksLimit: 4
+            },
+            grid: { color: 'rgba(15, 76, 117, 0.08)' },
+            border: { display: false }
+          }
+        }
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

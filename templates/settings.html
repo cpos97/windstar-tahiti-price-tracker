@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Settings · Windstar Tahiti{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Email and check interval are configured via a local <code>.env</code> file.</p>
+  </div>
+</section>
+
+{% if request.query_params.get('test') == 'ok' %}
+<div class="banner ok">{{ request.query_params.get('msg', 'Test email sent.') }}</div>
+{% elif request.query_params.get('test') == 'fail' %}
+<div class="banner warn">{{ request.query_params.get('msg', 'Test email failed.') }}</div>
+{% endif %}
+
+<section class="card">
+  <h2>Invite family member</h2>
+  <p class="muted" style="margin-top:0">
+    Welcome anyone to the private Tahiti tracker. Every invite is personalized
+    and <strong>always CC’d to you</strong>{% if alert_email %} ({{ alert_email }}){% endif %}.
+  </p>
+  {% if intro_flash %}
+  <div class="banner {{ intro_flash.type }}" id="invite-flash">{{ intro_flash.msg }}</div>
+  {% endif %}
+  <form class="form-grid" action="/family/intro-email" method="post" id="invite-form" novalidate>
+    <label>
+      Recipient name
+      <input
+        type="text"
+        name="recipient_name"
+        placeholder="Enter name, e.g., Aunt Susan"
+        required
+        minlength="1"
+        autocomplete="name"
+      />
+    </label>
+    <label>
+      Recipient email
+      <input
+        type="email"
+        name="recipient_email"
+        placeholder="Enter email address"
+        required
+        autocomplete="email"
+      />
+    </label>
+    <label class="span-2">
+      Live tracker URL <span class="optional">(link included in the invitation — edit only if needed)</span>
+      <input
+        type="url"
+        name="tracker_url"
+        placeholder="{{ dashboard_url }}"
+        value="{{ dashboard_url }}"
+      />
+    </label>
+    <div class="form-actions span-2">
+      <span class="muted" style="font-size:0.85rem">
+        Greeting becomes “Hi [Name]!” · From: Windstar Tahiti Price Tracker
+      </span>
+      <button type="submit" class="btn primary" id="invite-submit">
+        Send Welcome Invitation
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Email alerts</h2>
+  <p class="muted">
+    When a tracked cruise price drops, an email is sent automatically
+    <strong>to your inbox</strong> from a service-generated address
+    (you do <em>not</em> need to send from Gmail yourself).
+  </p>
+
+  <dl class="kv">
+    <dt>Status</dt>
+    <dd>
+      {% if email_ok %}
+        <span class="pill ok">Configured</span>
+      {% else %}
+        <span class="pill warn">Not configured</span>
+      {% endif %}
+    </dd>
+    <dt>Provider</dt>
+    <dd>{{ email_provider_label }}</dd>
+    <dt>From</dt>
+    <dd>{{ email_from if email_provider == 'resend' else (smtp_user or '—') }}</dd>
+    <dt>To (you)</dt>
+    <dd>{{ alert_email or '—' }}</dd>
+    <dt>Resend API key</dt>
+    <dd>
+      {% if resend_key_set %}
+        <span class="pill ok">Set</span>
+      {% else %}
+        <span class="pill warn">Missing</span>
+      {% endif %}
+    </dd>
+    <dt>Check interval</dt>
+    <dd>Every {{ check_interval }} minutes</dd>
+    <dt>Config file</dt>
+    <dd><code>{{ env_path }}</code></dd>
+  </dl>
+
+  <div class="howto">
+    <h3>Recommended: free auto “From” address (Resend)</h3>
+    <p class="muted">Emails come from <code>Windstar Tahiti Price Tracker &lt;onboarding@resend.dev&gt;</code> and go to <strong>{{ alert_email or 'your Gmail' }}</strong>.</p>
+    <ol>
+      <li>Create a free account at <a href="https://resend.com" target="_blank" rel="noopener">resend.com</a> (use {{ alert_email or 'your email address' }}).</li>
+      <li>Open <a href="https://resend.com/api-keys" target="_blank" rel="noopener">API Keys</a> → Create API Key → copy it.</li>
+      <li>Edit <code>.env</code>:
+        <pre>EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_your_key_here
+EMAIL_FROM=Windstar Tahiti Price Tracker &lt;onboarding@resend.dev&gt;
+ALERT_EMAIL=you@example.com
+DEPARTURE_DATE=2027-05-20</pre>
+      </li>
+      <li>Restart the app, then click <strong>Send test email</strong> below.</li>
+    </ol>
+    <p class="muted">Note: with Resend’s free test sender, you can usually only email the address you signed up with until you add your own domain.</p>
+  </div>
+
+  <div class="howto">
+    <h3>Optional: send via Gmail SMTP instead</h3>
+    <pre>EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@example.com
+SMTP_PASSWORD=your-gmail-app-password
+ALERT_EMAIL=you@example.com</pre>
+  </div>
+
+  <form action="/settings/test-email" method="post" class="btn-row">
+    <button type="submit" class="btn primary" {% if not email_ok %}disabled title="Add RESEND_API_KEY to .env first"{% endif %}>
+      Send test email
+    </button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Site logins (Perx + ID90)</h2>
+  <p class="muted">
+    Session file: <code>{{ session_path }}</code>
+    {% if session_ok %}
+      <span class="pill ok">Saved</span>
+    {% else %}
+      <span class="pill warn">Not saved yet</span>
+    {% endif %}
+  </p>
+  <p class="muted">
+    Perx needs login to show rates. ID90 usually shows the fare without login
+    (we already track it at $6,216).
+  </p>
+  <div class="howto">
+    <h3>Same style as Resend — put credentials in <code>.env</code></h3>
+    <pre>PERX_USERNAME=your_perx_username
+PERX_PASSWORD=your_perx_password
+ID90_EMAIL=your@email.com
+ID90_PASSWORD=your_id90_password</pre>
+    <p class="muted">Then run:</p>
+    <pre>cd ~/cruise-price-tracker
+source .venv/bin/activate
+python scripts/login_sites.py</pre>
+    <p class="muted">Or interactive browser (type passwords in the window, not in chat):</p>
+    <pre>python scripts/login_sites.py --interactive</pre>
+  </div>
+</section>
+
+<section class="card">
+  <h2>How price detection works</h2>
+  <ul class="bullets">
+    <li>Opens the booking URL in a headless browser (Playwright).</li>
+    <li>Auto-detects dollar amounts that look like cruise fares.</li>
+    <li>If auto-detect fails, open the page in Chrome → right-click the price → Inspect → copy a CSS selector → paste it on the cruise.</li>
+    <li>Emails fire only when the new price is <strong>lower</strong> than the last recorded price.</li>
+  </ul>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const inviteForm = document.getElementById('invite-form');
+  const inviteBtn = document.getElementById('invite-submit');
+  if (inviteForm && inviteBtn) {
+    inviteForm.addEventListener('submit', function (e) {
+      const name = (inviteForm.querySelector('[name="recipient_name"]') || {}).value || '';
+      const email = (inviteForm.querySelector('[name="recipient_email"]') || {}).value || '';
+      if (!name.trim() || !email.trim()) {
+        e.preventDefault();
+        alert('Please fill in both name and email before sending.');
+        return;
+      }
+      inviteBtn.disabled = true;
+      inviteBtn.textContent = 'Sending invitation…';
+    });
+  }
+</script>
+{% endblock %}
