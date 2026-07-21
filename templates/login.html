@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Windstar Tahiti{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:360px;margin:3rem auto 0">
+  <h2 style="margin-top:0">Enter password</h2>
+  {% if error %}
+  <div class="banner warn">Wrong password — try again.</div>
+  {% endif %}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next_path }}" />
+    <label>
+      Password
+      <input type="password" name="password" autofocus required autocomplete="current-password" />
+    </label>
+    <div class="form-actions" style="margin-top:1rem">
+      <button type="submit" class="btn primary" style="width:100%">Enter</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

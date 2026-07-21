@@ -107,35 +107,35 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Windstar Tahiti Price Tracker", lifespan=lifespan)
 
-# Routes that must stay reachable without the site password: health checks
-# and the cron endpoint (which has its own CRON_SECRET check) are hit by
-# external services, not family members in a browser.
-_AUTH_EXEMPT_PATHS = {"/api/health", "/api/check-prices"}
+# Routes that must stay reachable without the site password: health checks,
+# the cron endpoint (which has its own CRON_SECRET check), the login page
+# itself, and static assets (so the login page can load its CSS).
+_AUTH_EXEMPT_PATHS = {"/api/health", "/api/check-prices", "/login"}
+AUTH_COOKIE_NAME = "site_auth"
+AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year — "stay logged in"
+
+
+def _auth_cookie_value() -> str:
+    import hashlib
+
+    return hashlib.sha256(config.SITE_PASSWORD.encode()).hexdigest()
 
 
 class SitePasswordMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if not config.SITE_PASSWORD or request.url.path in _AUTH_EXEMPT_PATHS:
+        path = request.url.path
+        if not config.SITE_PASSWORD or path in _AUTH_EXEMPT_PATHS or path.startswith("/static/"):
             return await call_next(request)
 
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Basic "):
-            import base64
+        cookie = request.cookies.get(AUTH_COOKIE_NAME, "")
+        if secrets.compare_digest(cookie, _auth_cookie_value()):
+            return await call_next(request)
 
-            try:
-                decoded = base64.b64decode(auth[6:]).decode("utf-8")
-                _, _, provided_password = decoded.partition(":")
-            except Exception:  # noqa: BLE001
-                provided_password = ""
-            if secrets.compare_digest(provided_password, config.SITE_PASSWORD):
-                return await call_next(request)
+        from urllib.parse import quote
 
-        from fastapi.responses import Response
+        from fastapi.responses import RedirectResponse as _Redirect
 
-        return Response(
-            status_code=401,
-            headers={"WWW-Authenticate": 'Basic realm="Windstar Tahiti Price Tracker"'},
-        )
+        return _Redirect(f"/login?next={quote(path)}", status_code=303)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -176,6 +176,38 @@ def latest_cabin_availability(db: Session, cruise_id: int) -> list[CabinAvailabi
             else 99
         ),
     )
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    if not config.SITE_PASSWORD:
+        return RedirectResponse("/", status_code=303)
+    next_path = request.query_params.get("next") or "/"
+    if not next_path.startswith("/"):
+        next_path = "/"
+    error = request.query_params.get("error") == "1"
+    return templates.TemplateResponse(
+        request, "login.html", {"next_path": next_path, "error": error}
+    )
+
+
+@app.post("/login")
+def login_submit(request: Request, password: Annotated[str, Form()], next: Annotated[str, Form()] = "/"):
+    if not next.startswith("/"):
+        next = "/"
+    if config.SITE_PASSWORD and secrets.compare_digest(password, config.SITE_PASSWORD):
+        resp = RedirectResponse(next, status_code=303)
+        resp.set_cookie(
+            AUTH_COOKIE_NAME,
+            _auth_cookie_value(),
+            max_age=AUTH_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+        )
+        return resp
+    from urllib.parse import quote
+
+    return RedirectResponse(f"/login?next={quote(next)}&error=1", status_code=303)
 
 
 @app.get("/", response_class=HTMLResponse)
