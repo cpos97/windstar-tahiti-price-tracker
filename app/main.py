@@ -187,7 +187,14 @@ def login_page(request: Request):
         next_path = "/"
     error = request.query_params.get("error") == "1"
     return templates.TemplateResponse(
-        request, "login.html", {"next_path": next_path, "error": error}
+        request,
+        "login.html",
+        {
+            "next_path": next_path,
+            "error": error,
+            "check_interval": config.CHECK_INTERVAL_MINUTES,
+            "email_ok": config.email_configured(),
+        },
     )
 
 
