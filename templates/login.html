@@ -7,13 +7,13 @@
   {% if error %}
   <div class="banner warn">Wrong password — try again.</div>
   {% endif %}
-  <form method="post" action="/login" class="form-grid" style="grid-template-columns:1fr">
+  <form method="post" action="/login" class="login-form">
     <input type="hidden" name="next" value="{{ next_path }}" />
     <label>
       Password
       <input type="password" name="password" autofocus required autocomplete="current-password" />
     </label>
-    <div class="form-actions" style="margin-top:0.25rem">
+    <div class="form-actions" style="margin-top:0.75rem">
       <button type="submit" class="btn primary" style="width:100%">Enter</button>
     </div>
   </form>

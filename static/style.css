@@ -377,11 +377,10 @@ h2 {
 
 .optional { opacity: 0.75; font-weight: 400; }
 
-/* Shared field chrome — name, email, url, password all match */
+/* Shared field chrome — name, email, url all match */
 input[type="text"],
 input[type="email"],
 input[type="url"],
-input[type="password"],
 .form-grid input {
   display: block;
   width: 100%;
@@ -402,6 +401,43 @@ input[type="password"],
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   appearance: none;
   -webkit-appearance: none;
+}
+
+.login-form label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--slate-soft);
+  margin-bottom: 0.4rem;
+}
+
+.login-form input[type="password"] {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 76, 117, 0.2);
+  color: var(--slate);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: var(--font);
+  font-weight: 400;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.login-form input[type="password"]:hover {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 76, 117, 0.28);
+}
+
+.login-form input[type="password"]:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--turquoise);
+  box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.25);
 }
 
 input::placeholder {
