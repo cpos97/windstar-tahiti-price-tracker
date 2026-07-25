@@ -1,0 +1,17 @@
+[Unit]
+Description=ngrok tunnel for Cruise Price Tracker (reserved domain)
+After=network-online.target cruise-tracker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+# Reserved free ngrok domain — keeps the family's link identical forever
+ExecStart=/usr/local/bin/ngrok http --url=__NGROK_DOMAIN__ 8765 --log=stdout
+Restart=always
+RestartSec=10
+StandardOutput=append:__APP_DIR__/data/ngrok-tunnel.log
+StandardError=append:__APP_DIR__/data/ngrok-tunnel.log
+
+[Install]
+WantedBy=multi-user.target

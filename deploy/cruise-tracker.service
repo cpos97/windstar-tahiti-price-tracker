@@ -1,0 +1,19 @@
+[Unit]
+Description=Windstar Tahiti Cruise Price Tracker (web dashboard + scheduler)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APP_DIR__
+Environment=HOST=127.0.0.1
+Environment=PORT=8765
+ExecStart=__APP_DIR__/.venv/bin/python run.py
+Restart=always
+RestartSec=10
+StandardOutput=append:__APP_DIR__/data/tracker-server.log
+StandardError=append:__APP_DIR__/data/tracker-server.log
+
+[Install]
+WantedBy=multi-user.target
