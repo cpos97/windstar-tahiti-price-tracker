@@ -188,21 +188,25 @@ def check_cabin_availability(db: Session, cruise: Cruise) -> dict:
 
     now = datetime.now(timezone.utc)
 
-    # A tracked category that's absent from ID90's list has sold out — record
-    # it as 0 rather than leaving a stale count on the dashboard forever.
-    # Only trust that when the page clearly loaded (at least one other
-    # category returned a number); if everything came back None it's a failed
-    # scrape, and writing zeros would wrongly look like a total sell-out.
-    page_loaded = any(r["available"] is not None for r in results)
-    if not page_loaded:
+    # Distinguish "absent from ID90's list" (sold out → record 0) from
+    # "couldn't read the page" (unknown → leave the last known value alone).
+    # Conflating them would either strand a stale count on the dashboard
+    # forever, or falsely report a sell-out on a mere timeout.
+    if not any(r.get("status") == "ok" for r in results):
         return {
             "cruise_id": cruise.id,
             "ok": False,
-            "error": "No categories returned a count — treating as a failed scrape",
+            "error": "No categories read successfully — treating as a failed scrape",
         }
 
     for r in results:
-        if r["available"] is None:
+        status = r.get("status")
+        if status == "error":
+            logger.warning(
+                "Category %s could not be read — keeping last known count", r["code"]
+            )
+            continue
+        if status == "absent":
             r = {**r, "available": 0, "name": r["name"] or r["code"]}
             logger.info(
                 "Category %s absent from ID90 list — recording as sold out (0)", r["code"]

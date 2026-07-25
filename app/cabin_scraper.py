@@ -28,11 +28,17 @@ def _wait_for_title(page, contains: str, timeout_s: int = 45) -> bool:
 
 
 def _go_to_category_page(page, url: str) -> None:
-    page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+    page.goto(url, wait_until="domcontentloaded", timeout=90_000)
     page.wait_for_timeout(4000)
     page.locator("div.row.selected button.zzSelectButton").first.click()
     _wait_for_title(page, "Category Availability")
     page.wait_for_timeout(1500)
+
+
+# Playwright defaults to 30s, which is too tight on a small single-core cloud
+# VM — ID90's pages are slow and this flow does ~11 navigations. Observed a
+# roughly 50% failure rate at the default before raising this.
+DEFAULT_TIMEOUT_MS = 90_000
 
 
 def check_categories(
@@ -47,6 +53,8 @@ def check_categories(
         browser = p.chromium.launch(headless=True)
         ctx_kwargs = {"storage_state": storage_state} if storage_state else {}
         context = browser.new_context(**ctx_kwargs, viewport={"width": 1400, "height": 1400})
+        context.set_default_timeout(DEFAULT_TIMEOUT_MS)
+        context.set_default_navigation_timeout(DEFAULT_TIMEOUT_MS)
         page = context.new_page()
         try:
             _go_to_category_page(page, url)
@@ -62,15 +70,39 @@ def check_categories(
             for code in codes:
                 idx = index_by_code.get(code)
                 if idx is None:
+                    # Genuinely not offered anymore — i.e. sold out
                     logger.warning("Category %s not found on category list", code)
-                    results.append({"code": code, "name": code, "available": None})
+                    results.append(
+                        {"code": code, "name": code, "available": None, "status": "absent"}
+                    )
                     continue
 
-                cards = page.locator("button:has-text('Select')")
-                cards.nth(idx).click()
-                _wait_for_title(page, "Cabin Selection")
-                page.wait_for_timeout(1500)
-                text = page.inner_text("body")
+                # Retry once — a single slow page shouldn't lose the whole run
+                text = None
+                for attempt in (1, 2):
+                    try:
+                        cards = page.locator("button:has-text('Select')")
+                        cards.nth(idx).click()
+                        _wait_for_title(page, "Cabin Selection")
+                        page.wait_for_timeout(1500)
+                        text = page.inner_text("body")
+                        break
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "Category %s attempt %s failed: %s", code, attempt, str(exc)[:120]
+                        )
+                        if attempt == 2:
+                            break
+                        _go_to_category_page(page, url)
+
+                if text is None:
+                    # Couldn't read the page — unknown, NOT sold out
+                    results.append(
+                        {"code": code, "name": code, "available": None, "status": "error"}
+                    )
+                    if code != codes[-1]:
+                        _go_to_category_page(page, url)
+                    continue
 
                 m_cat = re.search(r"Category:\s*\n?(.+?)\n", text)
                 m_avail = re.search(r"(\d+)\s+Cabins?\s+available", text, re.IGNORECASE)
@@ -84,7 +116,14 @@ def check_categories(
                 else:
                     available = None
 
-                results.append({"code": code, "name": name, "available": available})
+                results.append(
+                    {
+                        "code": code,
+                        "name": name,
+                        "available": available,
+                        "status": "ok" if available is not None else "error",
+                    }
+                )
 
                 # Fresh reload for the next category — most reliable against
                 # this ASP.NET postback flow (in-page "Back" isn't always clickable)
