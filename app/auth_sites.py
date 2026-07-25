@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 from pathlib import Path
 
@@ -369,10 +370,27 @@ def save_session_with_credentials(
                 "message": "No ID90_EMAIL / ID90_PASSWORD in .env",
             }
 
-        context.storage_state(path=str(out))
+        # Only persist when a login actually succeeded. This function used to
+        # write unconditionally, which meant a failed login (expired password,
+        # site outage, a CAPTCHA) would overwrite a perfectly good session
+        # with a logged-out one and silently break all scraping.
+        attempted = [r for r in (results["perx"], results["id90"]) if r]
+        any_ok = any(r.get("ok") for r in attempted)
+        if any_ok:
+            if out.is_file():
+                try:
+                    shutil.copy2(out, out.with_name(out.name + ".bak"))
+                except OSError:  # noqa: PERF203
+                    logger.warning("Could not back up existing session file")
+            context.storage_state(path=str(out))
+        else:
+            logger.error(
+                "No site login succeeded — keeping the existing session file untouched"
+            )
         browser.close()
 
-    results["saved"] = out.is_file()
+    results["any_ok"] = any_ok
+    results["saved"] = bool(any_ok and out.is_file())
     return results
 
 

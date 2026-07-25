@@ -11,7 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app import config
 from app.database import SessionLocal
 from app.models import Cruise
-from app.tracker import check_all_active, check_cabin_availability
+from app.tracker import check_all_active, check_cabin_availability, refresh_login_session
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,14 @@ scheduler = BackgroundScheduler()
 CABIN_CHECK_TZ = ZoneInfo("America/New_York")
 CABIN_CHECK_HOUR = 15
 CABIN_CHECK_MINUTE = 2
+
+# Proactively re-login weekly so the saved session rarely gets old enough to
+# expire mid-check. Scrapes also refresh on demand if they hit a login wall;
+# this just makes that path rare. Sunday 4:10 AM ET — off-hours, and well
+# clear of the daily cabin check.
+SESSION_REFRESH_DAY = "sun"
+SESSION_REFRESH_HOUR = 4
+SESSION_REFRESH_MINUTE = 10
 
 
 def _job() -> None:
@@ -51,6 +59,12 @@ def _cabin_job() -> None:
             logger.info("Cabin availability check for cruise %s: %s", cruise.id, result.get("ok"))
     finally:
         db.close()
+
+
+def _session_refresh_job() -> None:
+    logger.info("Scheduled login session refresh starting…")
+    ok = refresh_login_session()
+    logger.info("Scheduled login session refresh: ok=%s", ok)
 
 
 def start_scheduler() -> None:
@@ -82,12 +96,29 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _session_refresh_job,
+        CronTrigger(
+            day_of_week=SESSION_REFRESH_DAY,
+            hour=SESSION_REFRESH_HOUR,
+            minute=SESSION_REFRESH_MINUTE,
+            timezone=CABIN_CHECK_TZ,
+        ),
+        id="login_session_refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
-        "Scheduler started: price check every %s minutes, cabin availability daily at %02d:%02d %s",
+        "Scheduler started: price check every %s minutes, cabin availability daily at "
+        "%02d:%02d, login refresh %s %02d:%02d (%s)",
         minutes,
         CABIN_CHECK_HOUR,
         CABIN_CHECK_MINUTE,
+        SESSION_REFRESH_DAY,
+        SESSION_REFRESH_HOUR,
+        SESSION_REFRESH_MINUTE,
         CABIN_CHECK_TZ.key,
     )
 

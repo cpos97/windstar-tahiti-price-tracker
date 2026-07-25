@@ -34,6 +34,32 @@ def _try_refresh_id90_url(cruise: Cruise) -> bool:
     return True
 
 
+def _looks_login_gated(error: str | None) -> bool:
+    """Does this scrape error look like an expired/missing login session?"""
+    if not error:
+        return False
+    e = error.lower()
+    return "log in for rates" in e or "login for rates" in e or "without login" in e
+
+
+def refresh_login_session() -> bool:
+    """Re-login with stored credentials and rewrite the saved session."""
+    from app import auth_sites
+
+    try:
+        res = auth_sites.save_session_with_credentials(headless=True)
+    except Exception:  # noqa: BLE001
+        logger.exception("Automatic login refresh failed")
+        return False
+    ok = bool(res.get("any_ok"))
+    logger.info(
+        "Automatic login refresh: perx=%s id90=%s",
+        (res.get("perx") or {}).get("ok"),
+        (res.get("id90") or {}).get("ok"),
+    )
+    return ok
+
+
 def check_cruise(db: Session, cruise: Cruise) -> dict:
     """Check one cruise, update DB, email on drop. Returns a status dict."""
     result = scrape_cruise(cruise.url, cruise.css_selector, cruise.expected_date)
@@ -41,6 +67,12 @@ def check_cruise(db: Session, cruise: Cruise) -> dict:
     if result.error and "Departure date mismatch" in result.error:
         if _try_refresh_id90_url(cruise):
             db.commit()  # persist the new URL even if the retry below still fails
+            result = scrape_cruise(cruise.url, cruise.css_selector, cruise.expected_date)
+
+    # Saved login session expired — re-login and retry once
+    if _looks_login_gated(result.error):
+        logger.info("Cruise %s looks login-gated; refreshing session", cruise.id)
+        if refresh_login_session():
             result = scrape_cruise(cruise.url, cruise.css_selector, cruise.expected_date)
 
     now = datetime.now(timezone.utc)
