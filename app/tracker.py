@@ -206,11 +206,7 @@ def check_cabin_availability(db: Session, cruise: Cruise) -> dict:
                 "Category %s could not be read — keeping last known count", r["code"]
             )
             continue
-        if status == "absent":
-            r = {**r, "available": 0, "name": r["name"] or r["code"]}
-            logger.info(
-                "Category %s absent from ID90 list — recording as sold out (0)", r["code"]
-            )
+
         last = (
             db.query(CabinAvailability)
             .filter(
@@ -220,6 +216,16 @@ def check_cabin_availability(db: Session, cruise: Cruise) -> dict:
             .order_by(CabinAvailability.checked_at.desc())
             .first()
         )
+
+        if status == "absent":
+            # Sold out. Keep the previously-known display name — an absent
+            # category has no name on the page, and falling back to the bare
+            # code renders as "S · S" on the dashboard.
+            prior_name = last.category_name if last is not None else None
+            r = {**r, "available": 0, "name": prior_name or r["code"]}
+            logger.info(
+                "Category %s absent from ID90 list — recording as sold out (0)", r["code"]
+            )
         # Only append a new history row when the count actually changed (or first reading)
         if last is not None and last.available == r["available"]:
             continue
