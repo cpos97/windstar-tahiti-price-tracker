@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -18,11 +19,12 @@ scheduler = BackgroundScheduler()
 
 # Once a day is plenty for cabin counts — each check walks 5 live category
 # pages against ID90's vendor system, so it's not something to run often.
-# Server's system clock is US/Eastern, so this is 3:02 PM ET. Off-the-dot
-# minute is a harmless habit carried over from the GitHub Actions cron
-# (there, exact top-of-hour is genuinely congested; doesn't matter for a
-# local single-machine scheduler, but no downside either).
-CABIN_CHECK_HOUR = 15  # local server time
+#
+# Pinned to Eastern explicitly rather than relying on the host clock: the
+# cloud VM runs on UTC, so a bare hour=15 would fire at 11:02 AM ET instead
+# of the intended 3:02 PM. ZoneInfo also handles EST/EDT automatically.
+CABIN_CHECK_TZ = ZoneInfo("America/New_York")
+CABIN_CHECK_HOUR = 15
 CABIN_CHECK_MINUTE = 2
 
 
@@ -72,7 +74,9 @@ def start_scheduler() -> None:
     )
     scheduler.add_job(
         _cabin_job,
-        CronTrigger(hour=CABIN_CHECK_HOUR, minute=CABIN_CHECK_MINUTE),
+        CronTrigger(
+            hour=CABIN_CHECK_HOUR, minute=CABIN_CHECK_MINUTE, timezone=CABIN_CHECK_TZ
+        ),
         id="cabin_availability_check",
         replace_existing=True,
         max_instances=1,
@@ -80,10 +84,11 @@ def start_scheduler() -> None:
     )
     scheduler.start()
     logger.info(
-        "Scheduler started: price check every %s minutes, cabin availability daily at %02d:%02d",
+        "Scheduler started: price check every %s minutes, cabin availability daily at %02d:%02d %s",
         minutes,
         CABIN_CHECK_HOUR,
         CABIN_CHECK_MINUTE,
+        CABIN_CHECK_TZ.key,
     )
 
 
