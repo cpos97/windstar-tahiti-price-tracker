@@ -106,3 +106,27 @@ tail -f ~/cruise-price-tracker/data/tracker-server.log
 - Your ID90 / Perx credentials will live on the VM. That's inherent to
   moving the scraper off your Mac — worth knowing, not a bug.
 - Keep the VM patched: `sudo apt-get update && sudo apt-get upgrade -y`.
+
+## Custom domain + HTTPS (replaces the ngrok tunnel)
+
+The site is served directly from the VM at **https://postmatahiti.duckdns.org**
+via Caddy, with an automatic Let's Encrypt certificate. The ngrok tunnel
+(`cruise-tunnel.service`) is disabled — no more click-through interstitial.
+
+Pieces involved:
+
+- **DNS**: DuckDNS subdomain `postmatahiti` → the VM's public IP.
+- **`~/duckdns/duck.sh`** (cron, every 5 min): re-points DuckDNS at whatever
+  IP the VM currently has. Oracle public IPs are *ephemeral* and can change
+  if the instance is stopped/started, which would otherwise break the site.
+- **`/etc/caddy/Caddyfile`**: terminates TLS, reverse-proxies to
+  `127.0.0.1:8765`. Caddy renews the cert on its own.
+- **Firewall, two layers** — both are required:
+  1. Host `iptables` (persisted via `netfilter-persistent`)
+  2. OCI VCN security list ingress rules for TCP 80 and 443
+     (Networking → VCN → Default Security List → Add Ingress Rules)
+
+Port 80 must stay open: it's used for HTTP→HTTPS redirect and for
+Let's Encrypt renewal challenges.
+
+To go back to ngrok: `sudo systemctl enable --now cruise-tunnel`.
