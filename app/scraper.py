@@ -59,10 +59,13 @@ _MONTHS = (
     "september|october|november|december"
 )
 _MONTH_NAMES = _MONTHS.split("|")
+_MONTHS_ABBR = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
 _DATE_PATTERNS = [
     re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),
     re.compile(rf"\b(?:{_MONTHS})\s+\d{{1,2}},?\s+\d{{4}}\b", re.IGNORECASE),
     re.compile(rf"\b\d{{1,2}}\s+(?:{_MONTHS})\s+\d{{4}}\b", re.IGNORECASE),
+    # Abbreviated, e.g. "Nov 23 2026" — ID90 uses this on search results
+    re.compile(rf"\b(?:{_MONTHS_ABBR})\w*\s+\d{{1,2}},?\s+\d{{4}}\b", re.IGNORECASE),
     re.compile(r"\b\d{1,2}/\d{1,2}/\d{4}\b"),
 ]
 
@@ -86,7 +89,10 @@ def page_confirms_date(html: str, expected_date: str) -> bool:
     for pattern in _DATE_PATTERNS:
         for match in pattern.finditer(text):
             raw = match.group(0)
-            for fmt in ("%Y-%m-%d", "%B %d, %Y", "%B %d %Y", "%d %B %Y", "%m/%d/%Y"):
+            for fmt in (
+                "%Y-%m-%d", "%B %d, %Y", "%B %d %Y", "%d %B %Y",
+                "%b %d, %Y", "%b %d %Y", "%m/%d/%Y",
+            ):
                 try:
                     if datetime.strptime(raw.replace(",", ""), fmt.replace(",", "")).date() == target:
                         return True
@@ -95,10 +101,12 @@ def page_confirms_date(html: str, expected_date: str) -> bool:
 
     # Loose fallback: "<Month> <Day>" near the target's 4-digit or 2-digit year
     month_name = _MONTH_NAMES[target.month - 1]
+    month_abbr = month_name[:3]
     year_2digit = f"{target.year % 100:02d}"
     loose_patterns = [
         re.compile(rf"\b{month_name}\s+{target.day}\b", re.IGNORECASE),
         re.compile(rf"\b{target.day}\s+{month_name}\b", re.IGNORECASE),
+        re.compile(rf"\b{month_abbr}\w*\s+{target.day}\b", re.IGNORECASE),
     ]
     for pattern in loose_patterns:
         for match in pattern.finditer(text):
@@ -292,6 +300,42 @@ def fetch_page_html(url: str, wait_ms: int = 4000) -> tuple[str, str | None]:
             browser.close()
 
 
+def extract_from_results_page(
+    html: str, expected_date: str, must_contain: str | None = None
+) -> tuple[float, str, str] | None:
+    """Pull one sailing's price out of an ID90 search-results listing.
+
+    A results page lists several sailings, so auto-detection would pick the
+    wrong number. Locate the block for the wanted departure date (optionally
+    also requiring a phrase like "10 Days" to disambiguate two sailings on the
+    same date) and take the first price after it.
+    """
+    try:
+        target = datetime.strptime(expected_date, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+    text = BeautifulSoup(html, "lxml").get_text(" ", strip=True)
+    month_abbr = _MONTH_NAMES[target.month - 1][:3]
+    labels = [
+        rf"{month_abbr}\w*\s+{target.day}\s+{target.year}",
+        rf"{month_abbr}\w*\s+{target.day},\s*{target.year}",
+    ]
+
+    for label in labels:
+        for m in re.finditer(label, text, re.IGNORECASE):
+            # The itinerary heading sits before the date; the price after it.
+            before = text[max(0, m.start() - 400) : m.start()]
+            if must_contain and must_contain.lower() not in before.lower():
+                continue
+            after = text[m.end() : m.end() + 240]
+            prices = extract_prices_from_text(after)
+            if prices:
+                amount, currency, raw = prices[0]
+                return amount, currency, raw
+    return None
+
+
 def _login_gated_message(html: str, url: str) -> str | None:
     text = BeautifulSoup(html, "lxml").get_text(" ", strip=True).lower()
     if "log in for rates" in text or "login for rates" in text:
@@ -364,6 +408,21 @@ def scrape_cruise(
 
     try:
         result: tuple[float, str, str] | None = None
+        # ID90 search-results listings need date-scoped extraction
+        if "CruiseResultPage.aspx" in url and expected_date:
+            must = None
+            if css_selector and css_selector.startswith("results-match:"):
+                must = css_selector.split(":", 1)[1]
+            result = extract_from_results_page(html, expected_date, must)
+            if result is None:
+                return ScrapeResult(
+                    price=None, currency="USD", raw_text=None,
+                    error=f"No sailing matching {expected_date} on the results page",
+                    page_title=title,
+                )
+            price, currency, raw = result
+            return ScrapeResult(price=price, currency=currency, raw_text=raw,
+                                error=None, page_title=title)
         if css_selector:
             result = extract_with_selector(html, css_selector)
             if result is None:
