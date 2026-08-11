@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -121,6 +122,10 @@ def start_scheduler() -> None:
         )
         return
     minutes = max(5, config.CHECK_INTERVAL_MINUTES)
+    # Fire shortly after startup as well as on the interval. An interval
+    # trigger otherwise counts from scheduler start, so every restart —
+    # a deploy, a reboot, a watchdog recovery — silently pushed the next
+    # check out by a further full interval.
     scheduler.add_job(
         _job,
         "interval",
@@ -129,6 +134,7 @@ def start_scheduler() -> None:
         replace_existing=True,
         max_instances=1,
         coalesce=True,
+        next_run_time=datetime.now() + timedelta(seconds=60),
     )
     scheduler.add_job(
         _cabin_job,
