@@ -22,6 +22,10 @@ from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
+# The small cloud VM is far slower than a laptop and ID90's pages are sluggish;
+# the original 20s navigation timeout made this re-search fail outright there.
+NAV_TIMEOUT_MS = 90_000
+
 
 def _search_url(params: dict, target_date: datetime) -> str:
     month_str = f"{target_date.month}%2F1%2F{target_date.year}"
@@ -63,16 +67,18 @@ def find_current_url(current_url: str, expected_date: str, storage_state: str | 
         browser = p.chromium.launch(headless=True)
         ctx_kwargs = {"storage_state": storage_state} if storage_state else {}
         context = browser.new_context(**ctx_kwargs, viewport={"width": 1400, "height": 1200})
+        context.set_default_timeout(NAV_TIMEOUT_MS)
+        context.set_default_navigation_timeout(NAV_TIMEOUT_MS)
         page = context.new_page()
         try:
-            page.goto(search_url, wait_until="domcontentloaded", timeout=45_000)
+            page.goto(search_url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
             page.wait_for_timeout(3000)
 
             search_btn = page.get_by_role("button", name="Search")
             if search_btn.count() == 0:
                 logger.warning("Advanced search page had no Search button")
                 return None
-            with page.expect_navigation(timeout=20_000, wait_until="domcontentloaded"):
+            with page.expect_navigation(timeout=NAV_TIMEOUT_MS, wait_until="domcontentloaded"):
                 search_btn.click()
             page.wait_for_timeout(3000)
 
@@ -94,7 +100,7 @@ def find_current_url(current_url: str, expected_date: str, storage_state: str | 
                 logger.warning("Result row for %s had no Select button", date_label)
                 return None
 
-            with page.expect_navigation(timeout=20_000, wait_until="domcontentloaded"):
+            with page.expect_navigation(timeout=NAV_TIMEOUT_MS, wait_until="domcontentloaded"):
                 select_btn.click()
             page.wait_for_timeout(2000)
 
