@@ -117,7 +117,7 @@
     {% if benchmark and benchmark.current_price and c.current_price %}
     {% set diff = c.current_price - benchmark.current_price %}
     <div class="benchmark-row">
-      <span class="benchmark-tag">Benchmark</span>
+      <span class="benchmark-tag">Nov Comparison</span>
       <span class="benchmark-text">
         {{ benchmark_label }} &middot;
         <strong>{{ benchmark.current_price | money(benchmark.currency) }}</strong>
