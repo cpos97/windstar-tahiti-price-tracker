@@ -58,8 +58,15 @@ def find_current_url(current_url: str, expected_date: str, storage_state: str | 
     except ValueError:
         return None
 
-    # Matches how ID90 prints the date on results rows, e.g. "May 20 2027"
-    date_label = f"{target.strftime('%B')} {target.day} {target.year}"
+    # ID90 prints result dates abbreviated, e.g. "Nov 23 2026". Try the full
+    # month name too: they're identical for May, which is why a full-name-only
+    # match worked for the tracked sailing and silently failed for every
+    # other month.
+    date_labels = [
+        f"{target.strftime('%b')} {target.day} {target.year}",
+        f"{target.strftime('%B')} {target.day} {target.year}",
+        f"{target.strftime('%b')} {target.day:02d} {target.year}",
+    ]
 
     search_url = _search_url(params, target)
 
@@ -82,9 +89,15 @@ def find_current_url(current_url: str, expected_date: str, storage_state: str | 
                 search_btn.click()
             page.wait_for_timeout(3000)
 
-            date_anchor = page.locator(f"text={date_label}")
-            if date_anchor.count() == 0:
-                logger.warning("No result row found for %s", date_label)
+            date_label = None
+            date_anchor = None
+            for cand in date_labels:
+                loc = page.locator(f"text={cand}")
+                if loc.count() > 0:
+                    date_label, date_anchor = cand, loc
+                    break
+            if date_anchor is None:
+                logger.warning("No result row found for any of %s", date_labels)
                 return None
 
             row = date_anchor.first.locator(
