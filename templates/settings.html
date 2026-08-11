@@ -67,6 +67,35 @@
 </section>
 
 <section class="card">
+  <h2>Add another booking source</h2>
+  <p class="muted" style="margin-top:0">
+    Track an extra site for the same sailing. Leave the CSS selector blank
+    unless auto-detect picks the wrong price on that page.
+  </p>
+  <form class="form-grid" action="/cruises" method="post">
+    <label>
+      Name
+      <input type="text" name="name" placeholder="e.g. ID90 · Star Breeze · May 2027" required />
+    </label>
+    <label class="span-2">
+      Booking URL
+      <input type="url" name="url" placeholder="https://…" required />
+    </label>
+    <label class="span-2">
+      CSS selector <span class="optional">(optional — only if auto-detect fails)</span>
+      <input type="text" name="css_selector" placeholder="e.g. span.price.min" />
+    </label>
+    <div class="form-actions span-2">
+      <label class="checkbox">
+        <input type="checkbox" name="check_now" value="yes" checked />
+        Check price immediately after adding
+      </label>
+      <button type="submit" class="btn primary">Add cruise</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
   <h2>Email alerts</h2>
   <p class="muted">
     When a tracked cruise price drops, an email is sent automatically

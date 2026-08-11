@@ -163,81 +163,44 @@
   </article>
   {% endfor %}
 
-  {% for c in cruises %}
-  {% set cabin_rows = cabin_availability_by_cruise.get(c.id) %}
-  {% if cabin_rows %}
-  <article class="cruise-card card cruise-card-cabin">
-    <div class="cruise-card-top">
-      <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">Cabin Availability</a></h3>
-      <span class="pill ok">Ocean View Suites</span>
-    </div>
-    <div class="price-row">
-      <div>
-        <div class="label">Total available</div>
-        <div class="price">{{ cabin_rows | sum(attribute='available') }}</div>
-      </div>
-      <div>
-        <div class="label">Categories tracked</div>
-        <div class="price-sm">{{ cabin_rows | length }}</div>
-      </div>
-      <div>
-        <div class="label">Source</div>
-        <div class="price-sm low">ID90</div>
-      </div>
-    </div>
-    <div class="meta">
-      Last checked: {{ c.cabin_last_checked | fmt_last_checked }}
+</div>
+
+{% for c in cruises %}
+{% set cabin_rows = cabin_availability_by_cruise.get(c.id) %}
+{% if cabin_rows %}
+<article class="card cruise-card-cabin cabin-strip">
+  <div class="cabin-strip-head">
+    <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">Cabin Availability</a></h3>
+    <span class="pill ok">Ocean View Suites &middot; ID90</span>
+    <span class="cabin-strip-checked">Last checked: {{ c.cabin_last_checked | fmt_last_checked }}</span>
+  </div>
+
+  <div class="cabin-strip-body">
+    <div class="cabin-total">
+      <div class="label">Total available</div>
+      <div class="price">{{ cabin_rows | sum(attribute='available') }}</div>
     </div>
 
-    <div class="price-history">
-      <div class="price-history-head">
-        <span class="price-history-title">By category</span>
-        <span class="price-history-count">{{ cabin_rows | length }} categories</span>
+    <div class="cabin-cats">
+      {% for cab in cabin_rows %}
+      <div class="cabin-cat{% if cab.available == 0 %} sold-out{% endif %}">
+        <div class="cabin-cat-code">{{ cab.category_code }}</div>
+        <div class="cabin-cat-name">{{ cab.category_name }}</div>
+        <div class="cabin-cat-count">
+          {% if cab.available == 0 %}Sold out{% else %}{{ cab.available }} left{% endif %}
+        </div>
       </div>
-      <ul class="price-timeline">
-        {% for cab in cabin_rows %}
-        <li class="price-timeline-item">
-          <span class="tl-dot"></span>
-          <span class="tl-date">{{ cab.category_code }} · {{ cab.category_name }}</span>
-          <span class="tl-price">{{ cab.available }} left</span>
-        </li>
-        {% endfor %}
-      </ul>
+      {% endfor %}
     </div>
 
-    <div class="cruise-card-footer">
+    <div class="cabin-strip-action">
       <a class="btn secondary btn-sm" href="/cruises/{{ c.id }}">Open details</a>
     </div>
-  </article>
-  {% endif %}
-  {% endfor %}
-</div>
+  </div>
+</article>
 {% endif %}
-
-<section class="card" style="margin-top:1.5rem">
-  <h2>Add another booking source</h2>
-  <form class="form-grid" action="/cruises" method="post">
-    <label>
-      Name
-      <input type="text" name="name" placeholder="e.g. ID90 · Star Breeze · May 2027" required />
-    </label>
-    <label class="span-2">
-      Booking URL
-      <input type="url" name="url" placeholder="https://…" required />
-    </label>
-    <label class="span-2">
-      CSS selector <span class="optional">(optional — only if auto-detect fails)</span>
-      <input type="text" name="css_selector" placeholder="e.g. span.price.min" />
-    </label>
-    <div class="form-actions span-2">
-      <label class="checkbox">
-        <input type="checkbox" name="check_now" value="yes" checked />
-        Check price immediately after adding
-      </label>
-      <button type="submit" class="btn primary">Add cruise</button>
-    </div>
-  </form>
-</section>
+{% endfor %}
+{% endif %}
 
 {% if recent_alerts %}
 <section class="section-head" style="margin-top:2rem">
