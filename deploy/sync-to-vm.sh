@@ -10,7 +10,7 @@
 set -euo pipefail
 
 : "${VM:?Set VM=ubuntu@<vm-public-ip>}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 REMOTE_DIR="${REMOTE_DIR:-cruise-price-tracker}"
 LOCAL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 

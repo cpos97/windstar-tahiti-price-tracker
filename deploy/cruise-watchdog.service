@@ -1,0 +1,6 @@
+[Unit]
+Description=Cruise tracker watchdog (restart if checks have stalled)
+
+[Service]
+Type=oneshot
+ExecStart=/home/ubuntu/cruise-price-tracker/deploy/watchdog.sh

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -35,6 +36,10 @@ SESSION_REFRESH_DAY = "sun"
 SESSION_REFRESH_HOUR = 4
 SESSION_REFRESH_MINUTE = 10
 
+# If nothing has been checked in this long, assume a job is wedged and restart.
+# ~3 missed 30-minute cycles.
+STALE_RESTART_MINUTES = 90
+
 
 def _job() -> None:
     logger.info("Scheduled price check starting…")
@@ -45,6 +50,45 @@ def _job() -> None:
         logger.info("Scheduled check done: %s/%s ok", ok, len(results))
     finally:
         db.close()
+
+
+def _watchdog_job() -> None:
+    """Bail out of the process if a scheduled check has wedged.
+
+    A Playwright call can hang with no timeout (seen 2026-08-09: one hung for
+    two days). Because the price job runs with max_instances=1, a stuck run
+    holds the only slot and every later run is skipped — silently, since the
+    web app keeps serving. Playwright's sync API can't be interrupted from
+    another thread, so the reliable escape is to end the process and let
+    systemd's Restart=always bring it back clean.
+    """
+    from datetime import datetime, timezone
+
+    db = SessionLocal()
+    try:
+        newest = None
+        for cruise in db.query(Cruise).filter(Cruise.active.is_(True)).all():
+            ts = cruise.last_checked
+            if ts is None:
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            newest = ts if newest is None else max(newest, ts)
+    finally:
+        db.close()
+
+    if newest is None:
+        return
+
+    stale_min = (datetime.now(timezone.utc) - newest).total_seconds() / 60
+    if stale_min > STALE_RESTART_MINUTES:
+        logger.error(
+            "No successful check in %.0f min (limit %s) — a job is wedged; "
+            "exiting so systemd restarts the service",
+            stale_min,
+            STALE_RESTART_MINUTES,
+        )
+        os._exit(1)  # noqa: SLF001 - deliberate hard exit; a hung thread blocks a clean one
 
 
 def _cabin_job() -> None:
@@ -105,6 +149,16 @@ def start_scheduler() -> None:
             timezone=CABIN_CHECK_TZ,
         ),
         id="login_session_refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    # Runs in its own slot so a wedged price check can't block it too
+    scheduler.add_job(
+        _watchdog_job,
+        "interval",
+        minutes=15,
+        id="stall_watchdog",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

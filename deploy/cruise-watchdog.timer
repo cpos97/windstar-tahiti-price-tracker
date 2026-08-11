@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the cruise tracker watchdog every 15 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=15min
+Unit=cruise-watchdog.service
+
+[Install]
+WantedBy=timers.target
