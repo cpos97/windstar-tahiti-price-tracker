@@ -39,7 +39,12 @@ def _looks_login_gated(error: str | None) -> bool:
     if not error:
         return False
     e = error.lower()
-    return "log in for rates" in e or "login for rates" in e or "without login" in e
+    return (
+        "log in for rates" in e
+        or "login for rates" in e
+        or "without login" in e
+        or "members page without login" in e
+    )
 
 
 def refresh_login_session() -> bool:
@@ -53,9 +58,10 @@ def refresh_login_session() -> bool:
         return False
     ok = bool(res.get("any_ok"))
     logger.info(
-        "Automatic login refresh: perx=%s id90=%s",
+        "Automatic login refresh: perx=%s id90=%s vtg=%s",
         (res.get("perx") or {}).get("ok"),
         (res.get("id90") or {}).get("ok"),
+        (res.get("vtg") or {}).get("ok"),
     )
     return ok
 

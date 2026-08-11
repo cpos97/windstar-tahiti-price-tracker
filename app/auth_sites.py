@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import time
 from pathlib import Path
@@ -18,6 +19,12 @@ PERX_CRUISE = (
     "https://perx.com/cruises/windstar-cruises/star-breeze/"
     "itineraries/223329/sailings/2027-05-20/"
 )
+# VacationsToGo gates FastDeal pricing behind a members-only page, but the
+# "already a member" form asks for an email address only — there is no
+# password field at all.
+VTG_LOGIN = "https://www.vacationstogo.com/login.cfm"
+VTG_DEAL = "https://www.vacationstogo.com/fastdeal.cfm?deal=27296"
+
 ID90_LOGIN = "https://www.id90travel.com/login"
 ID90_CRUISE = (
     "https://cruise.id90travel.com/cs/forms/CruiseDetails.aspx"
@@ -82,6 +89,46 @@ def id90_looks_logged_in(page: Page) -> bool:
         x in text
         for x in ("log out", "logout", "sign out", "my trips", "my account", "dashboard")
     )
+
+
+def vtg_looks_logged_in(page: Page) -> bool:
+    """FastDeal content only renders for signed-in members."""
+    if "login.cfm" in page.url.lower():
+        return False
+    try:
+        text = page.inner_text("body")
+    except Exception:  # noqa: BLE001
+        return False
+    # The deal page shows the ship + a price once the session is valid
+    return "Star Breeze" in text and bool(re.search(r"\$[0-9][0-9,]{2,7}", text))
+
+
+def login_vtg(page: Page, email: str) -> tuple[bool, str]:
+    """Sign in to VacationsToGo. Email only — the site has no password field."""
+    try:
+        page.goto(VTG_DEAL, wait_until="domcontentloaded", timeout=45_000)
+        page.wait_for_timeout(1500)
+        _dismiss_cookies(page)
+
+        if vtg_looks_logged_in(page):
+            return True, "VacationsToGo already signed in"
+
+        # Redirected to the members page — fill the "already a member" form
+        box = page.locator("input[name='LogEmail']").first
+        box.wait_for(state="visible", timeout=15_000)
+        box.fill(email)
+        box.press("Enter")
+        page.wait_for_timeout(4000)
+
+        if not vtg_looks_logged_in(page):
+            page.goto(VTG_DEAL, wait_until="domcontentloaded", timeout=45_000)
+            page.wait_for_timeout(2500)
+
+        if vtg_looks_logged_in(page):
+            return True, "VacationsToGo FastDeal page loaded (session saved)"
+        return False, f"VacationsToGo sign-in did not take (at {page.url})"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"VacationsToGo login error: {exc}"
 
 
 def login_perx(page: Page, username: str, password: str) -> tuple[bool, str]:
@@ -323,6 +370,7 @@ def save_session_with_credentials(
     perx_pass: str | None = None,
     id90_email: str | None = None,
     id90_pass: str | None = None,
+    vtg_email: str | None = None,
     headless: bool = True,
 ) -> dict:
     """
@@ -332,10 +380,11 @@ def save_session_with_credentials(
     perx_pass = perx_pass or config.PERX_PASSWORD
     id90_email = id90_email or config.ID90_EMAIL
     id90_pass = id90_pass or config.ID90_PASSWORD
+    vtg_email = vtg_email or config.VTG_EMAIL
 
     out = config.PLAYWRIGHT_STORAGE_STATE
     out.parent.mkdir(parents=True, exist_ok=True)
-    results: dict = {"session_path": str(out), "perx": None, "id90": None}
+    results: dict = {"session_path": str(out), "perx": None, "id90": None, "vtg": None}
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -370,11 +419,18 @@ def save_session_with_credentials(
                 "message": "No ID90_EMAIL / ID90_PASSWORD in .env",
             }
 
+        if vtg_email:
+            ok, msg = login_vtg(page, vtg_email)
+            results["vtg"] = {"ok": ok, "message": msg}
+            logger.info("VacationsToGo login: %s — %s", ok, msg)
+        else:
+            results["vtg"] = {"ok": False, "message": "No VTG_EMAIL in .env"}
+
         # Only persist when a login actually succeeded. This function used to
         # write unconditionally, which meant a failed login (expired password,
         # site outage, a CAPTCHA) would overwrite a perfectly good session
         # with a logged-out one and silently break all scraping.
-        attempted = [r for r in (results["perx"], results["id90"]) if r]
+        attempted = [r for r in (results["perx"], results["id90"], results["vtg"]) if r]
         any_ok = any(r.get("ok") for r in attempted)
         if any_ok:
             if out.is_file():

@@ -315,6 +315,14 @@ def _login_gated_message(html: str, url: str) -> str | None:
                 "No public price on Perx without login. "
                 "Run: python scripts/save_browser_session.py"
             )
+    # VacationsToGo bounces signed-out visitors to login.cfm, which renders
+    # only site navigation — no ship name and no price. Report it as a login
+    # wall so the caller refreshes the session and retries.
+    if "vacationstogo.com" in url.lower() and "star breeze" not in text:
+        return (
+            "VacationsToGo redirected to its members page without login — "
+            "session expired or VTG_EMAIL is not set."
+        )
     return None
 
 

@@ -106,6 +106,10 @@ PERX_PASSWORD = os.getenv("PERX_PASSWORD", "")
 ID90_EMAIL = os.getenv("ID90_EMAIL", "")
 ID90_PASSWORD = os.getenv("ID90_PASSWORD", "")
 
+# VacationsToGo gates FastDeal pricing behind a members page, but signing in
+# needs an email address only — the site has no password field.
+VTG_EMAIL = os.getenv("VTG_EMAIL", "").strip()
+
 # Optional override for default booking URLs used only by seed scripts (not secrets, but configurable)
 ID90_CRUISE_URL = os.getenv("ID90_CRUISE_URL", "").strip()
 PERX_CRUISE_URL = os.getenv("PERX_CRUISE_URL", "").strip()
