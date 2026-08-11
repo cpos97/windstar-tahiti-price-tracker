@@ -172,30 +172,26 @@
   <div class="cabin-strip-head">
     <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">Cabin Availability</a></h3>
     <span class="pill ok">Ocean View Suites &middot; ID90</span>
-    <span class="cabin-strip-checked">Last checked: {{ c.cabin_last_checked | fmt_last_checked }}</span>
+    <div class="cabin-strip-meta">
+      <span class="cabin-strip-checked">{{ c.cabin_last_checked | fmt_last_checked }}</span>
+      <a class="btn secondary btn-sm" href="/cruises/{{ c.id }}">Open details</a>
+    </div>
   </div>
 
   <div class="cabin-strip-body">
-    <div class="cabin-total">
-      <div class="label">Total available</div>
-      <div class="price">{{ cabin_rows | sum(attribute='available') }}</div>
+    <div class="cabin-tile total">
+      <div class="cabin-tile-label">Total available</div>
+      <div class="cabin-tile-value">{{ cabin_rows | sum(attribute='available') }}</div>
+      <div class="cabin-tile-sub">across {{ cabin_rows | length }} categories</div>
     </div>
 
-    <div class="cabin-cats">
-      {% for cab in cabin_rows %}
-      <div class="cabin-cat{% if cab.available == 0 %} sold-out{% endif %}">
-        <div class="cabin-cat-code">{{ cab.category_code }}</div>
-        <div class="cabin-cat-name">{{ cab.category_name }}</div>
-        <div class="cabin-cat-count">
-          {% if cab.available == 0 %}Sold out{% else %}{{ cab.available }} left{% endif %}
-        </div>
-      </div>
-      {% endfor %}
+    {% for cab in cabin_rows %}
+    <div class="cabin-tile{% if cab.available == 0 %} sold-out{% endif %}">
+      <div class="cabin-tile-label">{{ cab.category_code }}</div>
+      <div class="cabin-tile-value">{{ cab.available }}</div>
+      <div class="cabin-tile-sub">{{ cab.category_name }}</div>
     </div>
-
-    <div class="cabin-strip-action">
-      <a class="btn secondary btn-sm" href="/cruises/{{ c.id }}">Open details</a>
-    </div>
+    {% endfor %}
   </div>
 </article>
 {% endif %}
