@@ -189,6 +189,18 @@ DbDep = Annotated[Session, Depends(get_db)]
 CABIN_CATEGORY_ORDER = ["S", "S1", "SS1", "S2", "S3"]
 
 
+def _benchmark_label(benchmark: Cruise | None) -> str:
+    """Short human label for the comparison sailing, e.g. 'Nov 23, 2026'."""
+    if benchmark is None:
+        return ""
+    if benchmark.expected_date:
+        try:
+            return date.fromisoformat(benchmark.expected_date).strftime("%b %-d, %Y")
+        except ValueError:
+            pass
+    return benchmark.name or "Same itinerary"
+
+
 def latest_cabin_availability(db: Session, cruise_id: int) -> list[CabinAvailability]:
     """Most recent reading per category, in a fixed display order."""
     rows = (
@@ -251,7 +263,15 @@ def login_submit(request: Request, password: Annotated[str, Form()], next: Annot
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: DbDep):
-    cruises = db.query(Cruise).order_by(Cruise.created_at.desc()).all()
+    # `isnot(True)` rather than `is_(False)` so rows predating the column
+    # (NULL after the ALTER TABLE migration) still count as real sources.
+    cruises = (
+        db.query(Cruise)
+        .filter(Cruise.is_benchmark.isnot(True))
+        .order_by(Cruise.created_at.desc())
+        .all()
+    )
+    benchmark = db.query(Cruise).filter(Cruise.is_benchmark.is_(True)).first()
     recent_alerts = (
         db.query(AlertLog).order_by(AlertLog.created_at.desc()).limit(10).all()
     )
@@ -322,6 +342,8 @@ def dashboard(request: Request, db: DbDep):
 
     ctx = {
         "cruises": cruises,
+        "benchmark": benchmark,
+        "benchmark_label": _benchmark_label(benchmark),
         "history_by_cruise": history_by_cruise,
         "cabin_availability_by_cruise": cabin_availability_by_cruise,
         "recent_alerts": recent_alerts,

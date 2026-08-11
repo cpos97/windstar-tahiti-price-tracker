@@ -114,6 +114,21 @@
     {% elif c.previous_price and c.current_price and c.current_price > c.previous_price %}
       <div class="delta up">↑ rose {{ ((c.current_price - c.previous_price) / c.previous_price * 100) | round(1) }}%</div>
     {% endif %}
+    {% if benchmark and benchmark.current_price and c.current_price %}
+    {% set diff = c.current_price - benchmark.current_price %}
+    <div class="benchmark-row">
+      <span class="benchmark-tag">Benchmark</span>
+      <span class="benchmark-text">
+        {{ benchmark_label }} &middot;
+        <strong>{{ benchmark.current_price | money(benchmark.currency) }}</strong>
+      </span>
+      <span class="benchmark-diff {% if diff > 0 %}over{% else %}under{% endif %}">
+        {% if diff > 0 %}+{% endif %}{{ diff | money(c.currency) }}
+        <span class="benchmark-mult">({{ (c.current_price / benchmark.current_price) | round(1) }}×)</span>
+      </span>
+    </div>
+    {% endif %}
+
     <div class="meta">
       Last checked: {{ c.last_checked | fmt_last_checked }}
       {% if c.last_error %}<span class="error-text"> · {{ c.last_error[:80] }}</span>{% endif %}

@@ -634,6 +634,53 @@ input:focus {
   border: 1px solid rgba(46, 196, 182, 0.45);
 }
 
+/* —— Benchmark comparison line inside each source card —— */
+.benchmark-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(15, 76, 117, 0.05);
+  border: 1px solid rgba(15, 76, 117, 0.09);
+  font-size: 0.82rem;
+}
+
+.benchmark-tag {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ocean-mid);
+  background: rgba(46, 196, 182, 0.16);
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+}
+
+.benchmark-text {
+  color: var(--muted);
+}
+.benchmark-text strong {
+  color: var(--ocean-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.benchmark-diff {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.benchmark-diff.over { color: #b85c38; }
+.benchmark-diff.under { color: #0d6b63; }
+
+.benchmark-mult {
+  font-weight: 500;
+  opacity: 0.75;
+}
+
 /* —— Cabin availability: full-width horizontal strip under the cruise cards —— */
 .cabin-strip {
   width: 100%;

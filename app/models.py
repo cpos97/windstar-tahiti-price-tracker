@@ -22,6 +22,9 @@ class Cruise(Base):
     url: Mapped[str] = mapped_column(Text, nullable=False)
     css_selector: Mapped[str | None] = mapped_column(String(512), nullable=True)
     expected_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Tracked and priced like any other source, but shown as a comparison line
+    # inside the real cards rather than getting a card of its own.
+    is_benchmark: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
     current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     previous_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     lowest_price: Mapped[float | None] = mapped_column(Float, nullable=True)
