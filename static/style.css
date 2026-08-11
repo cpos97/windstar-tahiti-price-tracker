@@ -942,9 +942,10 @@ input:focus {
   line-height: 1.35;
   color: var(--ocean-deep);
   font-weight: 600;
-  /* Pin to exactly two lines so a longer source name (VacationsToGo) can't
-     push its card's price row out of line with the others. */
-  min-height: calc(2 * 1.35em);
+  /* Titles are short source names now, so one line is the norm. The clamp
+     still caps a longer future name at two lines rather than letting it
+     push that card's price row out of line with the others. */
+  min-height: 1.35em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

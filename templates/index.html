@@ -88,7 +88,8 @@
   {% set hist = history_by_cruise.get(c.id, []) %}
   <article class="cruise-card card">
     <div class="cruise-card-top">
-      <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">{{ c.name }}</a></h3>
+      {# Just the source name — ship and sailing date are already in the hero #}
+      <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}" title="{{ c.name }}">{{ c.name.split('·')[0].strip() }}</a></h3>
       {% if c.active %}
         <span class="pill ok">Watching</span>
       {% else %}
@@ -118,15 +119,17 @@
       <div class="delta flat">no change</div>
     {% endif %}
     {% if benchmark and benchmark.current_price and c.current_price %}
-    {% set diff = c.current_price - benchmark.current_price %}
+    {# Signed from the comparison's point of view: negative means November is
+       cheaper than this source, which is the case worth noticing. #}
+    {% set diff = benchmark.current_price - c.current_price %}
     <div class="benchmark-row">
       <span class="benchmark-tag">Nov Comparison</span>
       <span class="benchmark-text">
         {{ benchmark_label }} &middot;
         <strong>{{ benchmark.current_price | money(benchmark.currency) }}</strong>
       </span>
-      <span class="benchmark-diff {% if diff > 0 %}over{% else %}under{% endif %}">
-        {% if diff > 0 %}+{% endif %}{{ diff | money(c.currency) }}
+      <span class="benchmark-diff {% if diff < 0 %}over{% else %}under{% endif %}">
+        {% if diff < 0 %}-{% endif %}{{ (diff | abs) | money(c.currency) }}
         <span class="benchmark-mult">({{ (c.current_price / benchmark.current_price) | round(1) }}×)</span>
       </span>
     </div>
