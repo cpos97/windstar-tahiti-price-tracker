@@ -109,10 +109,13 @@
         <div class="price-sm low">{{ c.lowest_price | money(c.currency) }}</div>
       </div>
     </div>
+    {# Always rendered, even when flat, so the rows below line up across cards #}
     {% if c.previous_price and c.current_price and c.current_price < c.previous_price %}
       <div class="delta down">↓ dropped {{ ((c.previous_price - c.current_price) / c.previous_price * 100) | round(1) }}%</div>
     {% elif c.previous_price and c.current_price and c.current_price > c.previous_price %}
       <div class="delta up">↑ rose {{ ((c.current_price - c.previous_price) / c.previous_price * 100) | round(1) }}%</div>
+    {% else %}
+      <div class="delta flat">no change</div>
     {% endif %}
     {% if benchmark and benchmark.current_price and c.current_price %}
     {% set diff = c.current_price - benchmark.current_price %}
