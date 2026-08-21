@@ -4,20 +4,35 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app import config
 from app.database import SessionLocal
 from app.models import Cruise
-from app.tracker import check_all_active, check_cabin_availability, refresh_login_session
+from app.tracker import (
+    cabin_check_supported,
+    check_all_active,
+    check_cabin_availability,
+    refresh_login_session,
+)
 
 logger = logging.getLogger(__name__)
 
-scheduler = BackgroundScheduler()
+# max_instances is per job id, so price/cabin/login jobs could otherwise run
+# concurrently — three Chromiums on a 1GB box. One worker serialises them.
+# The watchdog gets its own slot so a wedged scrape can't block it.
+scheduler = BackgroundScheduler(
+    executors={
+        "default": ThreadPoolExecutor(max_workers=1),
+        "watchdog": ThreadPoolExecutor(max_workers=1),
+    }
+)
 
 # Once a day is plenty for cabin counts — each check walks 5 live category
 # pages against ID90's vendor system, so it's not something to run often.
@@ -96,12 +111,22 @@ def _cabin_job() -> None:
     logger.info("Scheduled cabin availability check starting…")
     db = SessionLocal()
     try:
-        cruises = db.query(Cruise).filter(Cruise.active.is_(True)).all()
+        # Primary sailings before the benchmark: SQLite sorts False(0) first.
+        cruises = (
+            db.query(Cruise)
+            .filter(Cruise.active.is_(True))
+            .order_by(Cruise.is_benchmark.is_(True), Cruise.id)
+            .all()
+        )
         for cruise in cruises:
-            if "id90travel" not in cruise.url.lower():
+            if not cabin_check_supported(cruise):
                 continue
             result = check_cabin_availability(db, cruise)
-            logger.info("Cabin availability check for cruise %s: %s", cruise.id, result.get("ok"))
+            logger.info(
+                "Cabin availability check for cruise %s: ok=%s %s",
+                cruise.id, result.get("ok"), (result.get("error") or "")[:80],
+            )
+            time.sleep(5)  # let Chromium fully exit before the next sailing
     finally:
         db.close()
 
@@ -165,6 +190,7 @@ def start_scheduler() -> None:
         "interval",
         minutes=15,
         id="stall_watchdog",
+        executor="watchdog",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

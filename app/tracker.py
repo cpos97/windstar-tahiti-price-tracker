@@ -21,6 +21,10 @@ def _try_refresh_id90_url(cruise: Cruise) -> bool:
 
     if "id90travel" not in cruise.url.lower() or not cruise.expected_date:
         return False
+    # The benchmark's url is a search-results page on purpose; the drift
+    # self-heal only understands CruiseDetails URLs and would clobber it.
+    if "cruiseresultpage.aspx" in cruise.url.lower():
+        return False
 
     storage_state = (
         str(config.PLAYWRIGHT_STORAGE_STATE) if config.browser_session_exists() else None
@@ -32,6 +36,22 @@ def _try_refresh_id90_url(cruise: Cruise) -> bool:
     logger.info("Refreshed drifted ID90 URL for cruise %s: %s", cruise.id, fresh_url)
     cruise.url = fresh_url
     return True
+
+
+def cabin_source_url(cruise: Cruise) -> str | None:
+    """Which URL drives the cabin flow for this cruise.
+
+    The benchmark is priced off an ID90 *results* page, but cabin counts need
+    a *CruiseDetails* page, so it carries a separate cabin_url. Normal sources
+    use their single url for both.
+    """
+    return cruise.cabin_url or cruise.url
+
+
+def cabin_check_supported(cruise: Cruise) -> bool:
+    """Cabin counts only exist on an ID90 CruiseDetails page."""
+    url = (cabin_source_url(cruise) or "").lower()
+    return "id90travel" in url and "cruisedetails.aspx" in url
 
 
 def _looks_login_gated(error: str | None) -> bool:
@@ -212,14 +232,19 @@ def check_cabin_availability(db: Session, cruise: Cruise) -> dict:
     from app import config
     from app.cabin_scraper import check_categories
 
-    if "id90travel" not in cruise.url.lower():
-        return {"cruise_id": cruise.id, "ok": False, "error": "Cabin availability is only supported for ID90 URLs"}
+    if not cabin_check_supported(cruise):
+        return {
+            "cruise_id": cruise.id,
+            "ok": False,
+            "error": "Cabin availability needs an ID90 CruiseDetails URL",
+        }
+    url = cabin_source_url(cruise)
 
     storage_state = (
         str(config.PLAYWRIGHT_STORAGE_STATE) if config.browser_session_exists() else None
     )
     try:
-        results = check_categories(cruise.url, storage_state)
+        results = check_categories(url, storage_state, expected_date=cruise.expected_date)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Cabin availability check failed for cruise %s", cruise.id)
         return {"cruise_id": cruise.id, "ok": False, "error": str(exc)}

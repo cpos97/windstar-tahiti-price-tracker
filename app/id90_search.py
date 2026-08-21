@@ -18,6 +18,7 @@ import re
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
+from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
@@ -128,3 +129,86 @@ def find_current_url(current_url: str, expected_date: str, storage_state: str | 
         finally:
             context.close()
             browser.close()
+
+
+# Mirrors ID90's own delQsp() list in the CruiseResultPage inline script.
+_DROP_PARAMS = {
+    "bdc", "bgc", "bt", "days", "iid", "lnk1", "lnk2", "months", "ports",
+    "pp", "sailings", "sno", "ships", "tl", "tlc", "txt", "type",
+    "vendor", "zones", "pc",
+}
+
+
+def details_url_from_results(
+    results_url: str,
+    expected_date: str,
+    storage_state: str | None,
+    must_contain: str | None = None,
+) -> str | None:
+    """Build a CruiseDetails URL for expected_date from an ID90 results page.
+
+    ID90's own results page navigates with:
+        window.location = "/cs/forms/CruiseDetails.aspx?"
+                          + $.param(qso) + $(this).attr("data-parms")
+    Reproducing that is far more reliable than clicking Select: it doesn't
+    depend on guessing which DOM ancestor wraps the matched date, and costs
+    one page load instead of two.
+
+    Note `iid` is an *itinerary* id shared by every departure of that
+    itinerary — it does not identify the sailing. The sailing is selected by
+    the mon/dt date window carried over from the results URL, which is why
+    that window must be preserved verbatim.
+    """
+    from app.scraper import fetch_page_html
+
+    try:
+        target = datetime.strptime(expected_date, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+    labels = (
+        f"{target.strftime('%b')} {target.day:02d} {target.year}",
+        f"{target.strftime('%b')} {target.day} {target.year}",
+    )
+
+    html, _title = fetch_page_html(results_url)
+    soup = BeautifulSoup(html, "lxml")
+
+    matches: list[str] = []
+    for art in soup.select("article.crCruiseListing"):
+        text = art.get_text(" ", strip=True)
+        if not any(lbl in text for lbl in labels):
+            continue
+        # Required: two sailings can share a date (Nov 23 2026 has both a
+        # 10-day and a 17-day Tahiti), so a date alone is ambiguous.
+        if must_contain and must_contain.lower() not in text.lower():
+            continue
+        node = art.select_one(
+            "button.zzSelectButton[data-parms], a.crListingViewDetails[data-parms]"
+        )
+        if node and node.get("data-parms"):
+            matches.append(node["data-parms"])
+
+    if not matches:
+        logger.warning(
+            "No result row on %s matching %s (%r)", results_url, expected_date, must_contain
+        )
+        return None
+    if len(matches) > 1:
+        # Fail closed rather than silently picking the wrong sailing.
+        logger.error(
+            "Ambiguous: %s rows match %s (%r) — refusing to guess",
+            len(matches), expected_date, must_contain,
+        )
+        return None
+
+    # Filter raw query pairs textually so ID90's original percent-encoding
+    # (%2f, %7c) survives; re-encoding would change case/escapes.
+    kept = [
+        pair for pair in urlparse(results_url).query.split("&")
+        if pair and pair.split("=", 1)[0].lower() not in _DROP_PARAMS
+    ]
+    return (
+        "https://cruise.id90travel.com/cs/forms/CruiseDetails.aspx?"
+        + "&".join(kept) + matches[0]
+    )

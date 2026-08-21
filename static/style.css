@@ -1154,3 +1154,176 @@ code {
   .countdown-unit .num { font-size: 1.45rem; }
   body { background-attachment: scroll; } /* iOS friendly */
 }
+
+/* ——— Append to static/style.css AFTER the existing cabin block, i.e. after
+   the `@media (max-width: 640px)` rule ending at line 788. Order matters:
+   these re-declare `.cabin-strip-body`, `.cabin-tile` and `.cabin-tile.sold-out`
+   at equal specificity and must come later to win — including inside the
+   earlier media query, since media queries add no specificity.
+   `.cabin-tile-value` becomes unused but is harmless to leave. ——— */
+
+/* —— Cabin availability: two sailings, one strip —— */
+
+/* Legend in the strip header — says which number is which sailing once,
+   so the per-tile tags can stay tiny. */
+.cabin-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cabin-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.cabin-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: none;
+}
+.cabin-legend-dot.primary { background: var(--turquoise); }
+.cabin-legend-dot.compare {
+  background: transparent;
+  border: 1.5px solid rgba(15, 76, 117, 0.45);
+}
+
+/* Tiles hold two numbers now, so they need a little more room. The
+   single-sailing fallback drops back to the original 140px. */
+.cabin-strip-body {
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+}
+.cabin-strip-body.no-compare {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+/* Fixed three-row grid: label / numbers / caption. Every tile is exactly
+   the same height regardless of content — this is what keeps the row from
+   going ragged the way it did before. */
+.cabin-tile {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  justify-items: center;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 132px;
+  padding: 0.85rem 0.7rem;
+}
+.cabin-strip-body.no-compare .cabin-tile { min-height: 116px; }
+
+/* The two numbers, split by a hairline. Equal 1fr columns mean May and Nov
+   land on the same x-offset in every tile across the row. */
+.cabin-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 100%;
+}
+.cabin-strip-body.no-compare .cabin-duo { grid-template-columns: 1fr; }
+
+.cabin-num {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.3rem;
+  min-width: 0;
+}
+.cabin-num.compare { border-left: 1px solid rgba(15, 76, 117, 0.14); }
+
+.cabin-num-tag {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ocean-mid);
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.cabin-num-value {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.85rem;
+  line-height: 1.05;
+  color: var(--ocean-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+/* November is reference, not the booking — deliberately quieter. */
+.cabin-num.compare .cabin-num-tag { color: var(--muted); }
+.cabin-num.compare .cabin-num-value {
+  font-size: 1.4rem;
+  color: var(--ocean-navy);
+  opacity: 0.72;
+}
+
+/* Sold out (0) reads rust on whichever side it occurs. */
+.cabin-num.zero .cabin-num-value,
+.cabin-num.zero .cabin-num-tag {
+  color: #b85c38;
+  opacity: 1;
+}
+.cabin-num.compare.zero .cabin-num-value { opacity: 0.85; }
+
+/* Whole-tile wash stays reserved for the sailing we're actually booking. */
+.cabin-tile.sold-out {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(184, 92, 56, 0.3);
+}
+.cabin-tile.sold-out .cabin-tile-label { color: #b85c38; }
+
+/* November never returned this category — an em dash in muted grey, so it
+   can never be misread as a zero. */
+.cabin-num.missing .cabin-num-value {
+  font-size: 1.4rem;
+  color: var(--muted);
+  opacity: 0.45;
+}
+
+/* Two-line clamp: a long category name can no longer make one tile taller
+   than its neighbours. */
+.cabin-tile-sub {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 1.95em;
+}
+
+/* Signed gap on the total tile — same colour language as .benchmark-diff. */
+.cabin-delta {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cabin-delta.up { color: #0d6b63; }
+.cabin-delta.down { color: #b85c38; }
+.cabin-delta.flat { color: var(--muted); }
+
+.cabin-strip-foot {
+  margin: 0.85rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .cabin-strip-body { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .cabin-strip-body.no-compare { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+  .cabin-tile { min-height: 120px; }
+  .cabin-num-value { font-size: 1.55rem; }
+  .cabin-num.compare .cabin-num-value,
+  .cabin-num.missing .cabin-num-value { font-size: 1.2rem; }
+  .cabin-legend { order: 3; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cabin-tile { transition: none; }
+  .cabin-tile:hover { transform: none; }
+}

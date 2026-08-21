@@ -186,34 +186,92 @@
 
 </div>
 
+{# Cabin availability: ONE strip, each tile compares both sailings.
+   May 2027 is the real sailing (primary); Nov 2026 the comparison.
+   Degrades to a single-number layout when November data is missing. #}
+{% set nov_rows = cabin_availability_by_cruise.get(benchmark.id) if benchmark else None %}
+{% set has_compare = true if nov_rows else false %}
+
 {% for c in cruises %}
 {% set cabin_rows = cabin_availability_by_cruise.get(c.id) %}
 {% if cabin_rows %}
+{% set may_total = cabin_rows | sum(attribute='available') %}
+{% set nov_total = (nov_rows | sum(attribute='available')) if has_compare else None %}
 <article class="card cruise-card-cabin cabin-strip">
   <div class="cabin-strip-head">
     <h3><a class="cruise-card-title" href="/cruises/{{ c.id }}">Cabin Availability</a></h3>
     <span class="pill ok">Ocean View Suites &middot; ID90</span>
+    {% if has_compare %}
+    <div class="cabin-legend">
+      <span class="cabin-legend-item"><i class="cabin-legend-dot primary"></i>{{ departure_label }}</span>
+      <span class="cabin-legend-item"><i class="cabin-legend-dot compare"></i>{{ benchmark_label }}</span>
+    </div>
+    {% endif %}
     <div class="cabin-strip-meta">
       <span class="cabin-strip-checked">{{ c.cabin_last_checked | fmt_last_checked }}</span>
       <a class="btn secondary btn-sm" href="/cruises/{{ c.id }}">Open details</a>
     </div>
   </div>
 
-  <div class="cabin-strip-body">
+  <div class="cabin-strip-body{% if not has_compare %} no-compare{% endif %}">
+    {# Headline tile — totals for both sailings, then the signed gap.
+       Signed from November's point of view, same convention as the price
+       benchmark-row above: negative means November has fewer cabins. #}
     <div class="cabin-tile total">
       <div class="cabin-tile-label">Total available</div>
-      <div class="cabin-tile-value">{{ cabin_rows | sum(attribute='available') }}</div>
+      <div class="cabin-duo">
+        <div class="cabin-num{% if may_total == 0 %} zero{% endif %}">
+          <span class="cabin-num-tag">May &rsquo;27</span>
+          <span class="cabin-num-value">{{ may_total }}</span>
+        </div>
+        {% if has_compare %}
+        <div class="cabin-num compare{% if nov_total == 0 %} zero{% endif %}">
+          <span class="cabin-num-tag">Nov &rsquo;26</span>
+          <span class="cabin-num-value">{{ nov_total }}</span>
+        </div>
+        {% endif %}
+      </div>
+      {% if has_compare %}
+      {% set gap = nov_total - may_total %}
+      <div class="cabin-tile-sub">
+        <span class="cabin-delta {% if gap < 0 %}down{% elif gap > 0 %}up{% else %}flat{% endif %}"
+          >{% if gap > 0 %}+{% elif gap < 0 %}&minus;{% endif %}{{ gap | abs }}</span>
+        in November
+      </div>
+      {% else %}
       <div class="cabin-tile-sub">across {{ cabin_rows | length }} categories</div>
+      {% endif %}
     </div>
 
+    {# One tile per category. The November row is matched by code, not by
+       position, so a category November didn't return can't shift the
+       columns out of alignment. #}
     {% for cab in cabin_rows %}
+    {% set nov = (nov_rows | selectattr('category_code', 'equalto', cab.category_code) | list | first) if has_compare else None %}
     <div class="cabin-tile{% if cab.available == 0 %} sold-out{% endif %}">
       <div class="cabin-tile-label">{{ cab.category_code }}</div>
-      <div class="cabin-tile-value">{{ cab.available }}</div>
-      <div class="cabin-tile-sub">{{ cab.category_name }}</div>
+      <div class="cabin-duo">
+        <div class="cabin-num{% if cab.available == 0 %} zero{% endif %}">
+          <span class="cabin-num-tag">May &rsquo;27</span>
+          <span class="cabin-num-value">{{ cab.available }}</span>
+        </div>
+        {% if has_compare %}
+        <div class="cabin-num compare{% if nov is none %} missing{% elif nov.available == 0 %} zero{% endif %}">
+          <span class="cabin-num-tag">Nov &rsquo;26</span>
+          <span class="cabin-num-value">{% if nov is none %}&mdash;{% else %}{{ nov.available }}{% endif %}</span>
+        </div>
+        {% endif %}
+      </div>
+      <div class="cabin-tile-sub" title="{{ cab.category_name }}">{{ cab.category_name }}</div>
     </div>
     {% endfor %}
   </div>
+
+  {% if has_compare %}
+  <p class="cabin-strip-foot">
+    {{ benchmark_label }} inventory read {{ benchmark.cabin_last_checked | fmt_last_checked }}.
+  </p>
+  {% endif %}
 </article>
 {% endif %}
 {% endfor %}

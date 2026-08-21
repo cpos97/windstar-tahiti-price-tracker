@@ -315,8 +315,10 @@ def dashboard(request: Request, db: DbDep):
             for h in rows
         ]
 
+    # Include the benchmark so its cabin counts can be shown alongside the
+    # real sailing's; `cruises` deliberately excludes it from the card grid.
     cabin_availability_by_cruise: dict[int, list[CabinAvailability]] = {}
-    for c in cruises:
+    for c in ([*cruises, benchmark] if benchmark else list(cruises)):
         rows = latest_cabin_availability(db, c.id)
         if rows:
             cabin_availability_by_cruise[c.id] = rows

@@ -34,6 +34,10 @@ class Cruise(Base):
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     cabin_last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Cabin counts need an ID90 CruiseDetails page. The benchmark is *priced*
+    # off a search-results page, so it carries a separate URL for the cabin
+    # flow. Empty for normal sources, which use `url` for both.
+    cabin_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     history: Mapped[list[PriceHistory]] = relationship(

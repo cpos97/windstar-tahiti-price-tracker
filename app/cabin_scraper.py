@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime
 
 from playwright.sync_api import sync_playwright
 
@@ -27,9 +28,48 @@ def _wait_for_title(page, contains: str, timeout_s: int = 45) -> bool:
     return False
 
 
-def _go_to_category_page(page, url: str) -> None:
+def _selected_row_matches(page, expected_date: str) -> bool:
+    """Is the highlighted sailing row actually the sailing we want?
+
+    A CruiseDetails page lists every departure of the itinerary, so merely
+    finding the date somewhere on the page proves nothing — scraper.
+    page_confirms_date() returns True for the Nov page when asked about the
+    May sailing and vice versa. What decides which sailing's cabins we read
+    is `div.row.selected`, the row whose Select button we click, so that is
+    the only row worth asserting on.
+    """
+    try:
+        target = datetime.strptime(expected_date, "%Y-%m-%d")
+    except ValueError:
+        return True  # malformed — don't block on it
+
+    try:
+        text = page.locator("div.row.selected").first.inner_text()
+    except Exception:  # noqa: BLE001
+        return False
+
+    abbr = target.strftime("%b")
+    # e.g. "Mon, Nov 23, 26" / "Thu, May 20, 27"
+    patterns = [
+        rf"{abbr}\s+{target.day:02d},?\s*'?{target.year % 100:02d}\b",
+        rf"{abbr}\s+{target.day},?\s*'?{target.year % 100:02d}\b",
+        rf"{abbr}\s+{target.day:02d},?\s*{target.year}\b",
+        rf"{abbr}\s+{target.day},?\s*{target.year}\b",
+    ]
+    return any(re.search(p, text, re.IGNORECASE) for p in patterns)
+
+
+def _go_to_category_page(page, url: str, expected_date: str | None = None) -> None:
     page.goto(url, wait_until="domcontentloaded", timeout=90_000)
     page.wait_for_timeout(4000)
+    if expected_date and not _selected_row_matches(page, expected_date):
+        try:
+            got = page.locator("div.row.selected").first.inner_text()[:80]
+        except Exception:  # noqa: BLE001
+            got = "<no selected row>"
+        raise RuntimeError(
+            f"Selected sailing is not {expected_date} (row reads: {got!r})"
+        )
     page.locator("div.row.selected button.zzSelectButton").first.click()
     _wait_for_title(page, "Category Availability")
     page.wait_for_timeout(1500)
@@ -45,6 +85,7 @@ def check_categories(
     url: str,
     storage_state: str | None,
     codes: list[str] = TARGET_CATEGORIES,
+    expected_date: str | None = None,
 ) -> list[dict]:
     """Return [{code, name, available}] for the requested category codes."""
     results: list[dict] = []
@@ -57,7 +98,7 @@ def check_categories(
         context.set_default_navigation_timeout(DEFAULT_TIMEOUT_MS)
         page = context.new_page()
         try:
-            _go_to_category_page(page, url)
+            _go_to_category_page(page, url, expected_date)
 
             # Category codes appear in the same top-to-bottom order as the
             # "Select" buttons, so pair them up positionally.
@@ -93,7 +134,7 @@ def check_categories(
                         )
                         if attempt == 2:
                             break
-                        _go_to_category_page(page, url)
+                        _go_to_category_page(page, url, expected_date)
 
                 if text is None:
                     # Couldn't read the page — unknown, NOT sold out
@@ -101,7 +142,7 @@ def check_categories(
                         {"code": code, "name": code, "available": None, "status": "error"}
                     )
                     if code != codes[-1]:
-                        _go_to_category_page(page, url)
+                        _go_to_category_page(page, url, expected_date)
                     continue
 
                 m_cat = re.search(r"Category:\s*\n?(.+?)\n", text)
@@ -128,7 +169,7 @@ def check_categories(
                 # Fresh reload for the next category — most reliable against
                 # this ASP.NET postback flow (in-page "Back" isn't always clickable)
                 if code != codes[-1]:
-                    _go_to_category_page(page, url)
+                    _go_to_category_page(page, url, expected_date)
         finally:
             context.close()
             browser.close()
