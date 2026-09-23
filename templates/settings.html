@@ -183,7 +183,7 @@ ALERT_EMAIL=you@example.com</pre>
     box empty to keep the current one.
   </p>
 
-  {% macro login_status(key, label) %}
+  {% macro login_pill(key) %}
     {% set st = login_status.get(key) %}
     {% if login_test_running %}
       <span class="pill muted-pill">Testing…</span>
@@ -196,7 +196,7 @@ ALERT_EMAIL=you@example.com</pre>
 
   <form class="form-grid" action="/settings/logins" method="post" autocomplete="off">
     <label>
-      Perx username {{ login_status('perx', 'Perx') }}
+      Perx username {{ login_pill('perx') }}
       <input type="text" name="perx_username" value="{{ perx_username }}" autocomplete="off" />
     </label>
     <label>
@@ -205,7 +205,7 @@ ALERT_EMAIL=you@example.com</pre>
              placeholder="{{ '•••••••• saved — leave blank to keep' if perx_password_set else 'Enter password' }}" />
     </label>
     <label>
-      ID90 email {{ login_status('id90', 'ID90') }}
+      ID90 email {{ login_pill('id90') }}
       <input type="email" name="id90_email" value="{{ id90_email }}" autocomplete="off" />
     </label>
     <label>
@@ -214,7 +214,7 @@ ALERT_EMAIL=you@example.com</pre>
              placeholder="{{ '•••••••• saved — leave blank to keep' if id90_password_set else 'Enter password' }}" />
     </label>
     <label class="span-2">
-      VacationsToGo email <span class="optional">(no password — the site only asks for email)</span> {{ login_status('vtg', 'VacationsToGo') }}
+      VacationsToGo email <span class="optional">(no password — the site only asks for email)</span> {{ login_pill('vtg') }}
       <input type="email" name="vtg_email" value="{{ vtg_email }}" autocomplete="off" />
     </label>
     <div class="form-actions span-2">
