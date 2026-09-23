@@ -648,6 +648,33 @@ input:focus {
   font-size: 0.82rem;
 }
 
+a.benchmark-row {
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+a.benchmark-row:hover,
+a.benchmark-row:focus-visible {
+  background: rgba(15, 76, 117, 0.1);
+  border-color: rgba(15, 76, 117, 0.22);
+}
+
+.benchmark-go {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--ocean-mid);
+  opacity: 0.6;
+}
+
+.chart-wrap-lg {
+  height: 260px;
+}
+
+.price-history-card h2 {
+  margin: 0;
+}
+
 .benchmark-tag {
   font-size: 0.64rem;
   font-weight: 700;

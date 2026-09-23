@@ -198,6 +198,27 @@ DbDep = Annotated[Session, Depends(get_db)]
 CABIN_CATEGORY_ORDER = ["S", "S1", "SS1", "S2", "S3"]
 
 
+def _history_points(rows: list[PriceHistory]) -> list[dict]:
+    """Chart/timeline points for price history rows (oldest → newest)."""
+    return [
+        {
+            "price": h.price,
+            "checked_at": h.checked_at.isoformat() if h.checked_at else "",
+            "label": (
+                h.checked_at.strftime("%b %d, %Y · %H:%M")
+                if h.checked_at
+                else "—"
+            ),
+            "date_short": (
+                h.checked_at.strftime("%b %d")
+                if h.checked_at
+                else "—"
+            ),
+        }
+        for h in rows
+    ]
+
+
 def _benchmark_label(benchmark: Cruise | None) -> str:
     """Short human label for the comparison sailing, e.g. 'Nov 23, 2026'."""
     if benchmark is None:
@@ -306,23 +327,7 @@ def dashboard(request: Request, db: DbDep):
             db.commit()
             db.refresh(seed)
             rows = [seed]
-        history_by_cruise[c.id] = [
-            {
-                "price": h.price,
-                "checked_at": h.checked_at.isoformat() if h.checked_at else "",
-                "label": (
-                    h.checked_at.strftime("%b %d, %Y · %H:%M")
-                    if h.checked_at
-                    else "—"
-                ),
-                "date_short": (
-                    h.checked_at.strftime("%b %d")
-                    if h.checked_at
-                    else "—"
-                ),
-            }
-            for h in rows
-        ]
+        history_by_cruise[c.id] = _history_points(rows)
 
     # Include the benchmark so its cabin counts can be shown alongside the
     # real sailing's; `cruises` deliberately excludes it from the card grid.
@@ -547,6 +552,8 @@ def cruise_detail(request: Request, cruise_id: int, db: DbDep):
         .all()
     )
     cabin_rows = latest_cabin_availability(db, cruise_id)
+    hist_points = _history_points(history)
+    first_price = history[0].price if history else None
 
     cabin_history = (
         db.query(CabinAvailability)
@@ -569,6 +576,12 @@ def cruise_detail(request: Request, cruise_id: int, db: DbDep):
     ctx = {
         "cruise": cruise,
         "history": list(reversed(history[-50:])),
+        "hist_points": hist_points,
+        "first_price": first_price,
+        "first_checked": history[0].checked_at if history else None,
+        "display_name": (
+            f"Nov Comparison · {_benchmark_label(cruise)}" if cruise.is_benchmark else cruise.name
+        ),
         "alerts": alerts,
         "email_ok": config.email_configured(),
         "check_interval": config.CHECK_INTERVAL_MINUTES,

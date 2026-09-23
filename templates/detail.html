@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ cruise.name }} · Windstar Tahiti{% endblock %}
+{% block title %}{{ display_name }} · Windstar Tahiti{% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -10,7 +10,10 @@
 
 <section class="hero">
   <div>
-    <h1>{{ cruise.name }}</h1>
+    <h1>{{ display_name }}</h1>
+    {% if cruise.is_benchmark %}
+    <p class="muted">Same itinerary, tracked for comparison only — no price alerts are sent for this sailing.</p>
+    {% endif %}
     <p class="muted break-all"><a href="{{ cruise.url }}" target="_blank" rel="noopener">{{ cruise.url }}</a></p>
   </div>
   <div class="btn-row">
@@ -47,6 +50,31 @@
     <div class="price-sm">{{ cruise.highest_price | money(cruise.currency) }}</div>
   </div>
 </div>
+
+<section class="card price-history-card">
+  <div class="price-history-head">
+    <h2>Price History</h2>
+    <span class="price-history-count">{{ hist_points|length }} reading{% if hist_points|length != 1 %}s{% endif %}</span>
+  </div>
+  {% if first_price and cruise.current_price %}
+    {% set change = cruise.current_price - first_price %}
+    <p class="muted">
+      Since tracking began {{ first_checked | fmt_dt }}:
+      {{ first_price | money(cruise.currency) }} → {{ cruise.current_price | money(cruise.currency) }}
+      <span class="delta {% if change < 0 %}down{% elif change > 0 %}up{% else %}flat{% endif %}">
+        ({% if change > 0 %}+{% elif change < 0 %}−{% endif %}{{ (change | abs) | money(cruise.currency) }},
+        {% if change > 0 %}+{% elif change < 0 %}−{% endif %}{{ ((change | abs) / first_price * 100) | round(1) }}%)
+      </span>
+    </p>
+  {% endif %}
+  {% if hist_points %}
+  <div class="chart-wrap chart-wrap-lg">
+    <canvas class="hist-chart" data-history='{{ hist_points | tojson }}' data-currency="{{ cruise.currency }}"></canvas>
+  </div>
+  {% else %}
+  <p class="muted">No price readings yet.</p>
+  {% endif %}
+</section>
 
 {% if cabin_availability %}
 <section class="card table-wrap">
@@ -183,6 +211,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/hist-chart.js?v={{ static_version() }}"></script>
 {% if cabin_chart_series|length >= 1 %}
 <script>
   const cabinSeries = {{ cabin_chart_series | tojson }};
