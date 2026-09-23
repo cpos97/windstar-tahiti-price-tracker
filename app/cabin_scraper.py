@@ -175,3 +175,28 @@ def check_categories(
             browser.close()
 
     return results
+
+
+def fetch_category_prices(
+    url: str, storage_state: str | None, expected_date: str | None = None
+) -> list[dict]:
+    """[{code, name, price}] for every category on the sailing's Category Availability page.
+
+    One navigation + one click, so cheap enough to run whenever the headline
+    price changes — unlike check_categories, which opens every category.
+    """
+    from app.categories import parse_id90_category_prices
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        ctx_kwargs = {"storage_state": storage_state} if storage_state else {}
+        context = browser.new_context(**ctx_kwargs, viewport={"width": 1400, "height": 1400})
+        context.set_default_timeout(DEFAULT_TIMEOUT_MS)
+        context.set_default_navigation_timeout(DEFAULT_TIMEOUT_MS)
+        page = context.new_page()
+        try:
+            _go_to_category_page(page, url, expected_date)
+            return parse_id90_category_prices(page.inner_text("body"))
+        finally:
+            context.close()
+            browser.close()

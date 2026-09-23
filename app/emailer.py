@@ -35,6 +35,7 @@ def _price_drop_html(
     currency: str,
     drop: float,
     drop_pct: float,
+    cabin: str | None = None,
 ) -> str:
     greet = escape(greeting)
     name = escape(cruise_name)
@@ -44,6 +45,12 @@ def _price_drop_html(
     now = escape(_money(new_price, currency))
     saved = escape(_money(drop, currency))
     pct = f"{drop_pct:.1f}"
+    cabin_html = (
+        f'<p style="margin:8px 0 0 0;font-size:13px;color:#0D6B63;font-weight:600;">'
+        f"{escape(cabin)}</p>"
+        if cabin
+        else ""
+    )
 
     return f"""\
 <!DOCTYPE html>
@@ -121,6 +128,7 @@ def _price_drop_html(
                         <td align="center" style="background-color:#E8FAF7;border-radius:14px;padding:18px 12px;border:1px solid #B8EBE4;">
                           <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#0D6B63;font-weight:700;">Current price</p>
                           <p style="margin:0;font-size:26px;color:#0A3D5C;font-weight:700;font-family:Georgia,serif;">{now}</p>
+                          {cabin_html}
                         </td>
                       </tr>
                     </table>
@@ -179,6 +187,7 @@ def _price_drop_text(
     currency: str,
     drop: float,
     drop_pct: float,
+    cabin: str | None = None,
 ) -> str:
     return f"""{PRICE_DROP_SUBJECT}
 
@@ -194,6 +203,7 @@ You save: {_money(drop, currency)} per person! ({drop_pct:.1f}% off)
 
 Previous price: {_money(old_price, currency)}
 Current price:  {_money(new_price, currency)}
+Cabin:          {cabin or "Not specified by this site"}
 
 View Live Pricing Tracker:
 {config.DASHBOARD_URL}
@@ -543,6 +553,7 @@ def send_price_drop_email(
     old_price: float,
     new_price: float,
     currency: str = "USD",
+    cabin: str | None = None,
 ) -> tuple[bool, str]:
     """
     Send personalized price-drop emails to every configured recipient
@@ -559,10 +570,12 @@ def send_price_drop_email(
     for person in recipients:
         greeting = person["greeting"]
         text = _price_drop_text(
-            greeting, cruise_name, cruise_url, old_price, new_price, currency, drop, drop_pct
+            greeting, cruise_name, cruise_url, old_price, new_price, currency, drop, drop_pct,
+            cabin,
         )
         html = _price_drop_html(
-            greeting, cruise_name, cruise_url, old_price, new_price, currency, drop, drop_pct
+            greeting, cruise_name, cruise_url, old_price, new_price, currency, drop, drop_pct,
+            cabin,
         )
         ok, msg = send_email(PRICE_DROP_SUBJECT, text, html, to=person["email"])
         any_ok = any_ok or ok
@@ -622,6 +635,7 @@ def send_test_email() -> tuple[bool, str]:
         old_price=6516.00,
         new_price=6216.00,
         currency="USD",
+        cabin="Star Porthole Suite (SP)",
     )
 
 

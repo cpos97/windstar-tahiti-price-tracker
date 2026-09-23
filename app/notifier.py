@@ -43,6 +43,7 @@ def notify_price_drop(
     old_price: float,
     new_price: float,
     currency: str = "USD",
+    cabin: str | None = None,
 ) -> dict:
     """
     Always try Mac notification.
@@ -53,6 +54,7 @@ def notify_price_drop(
     short = (
         f"{cruise_name}: {currency} {old_price:,.0f} → {currency} {new_price:,.0f} "
         f"(save {currency} {drop:,.0f})"
+        + (f" · {cabin}" if cabin else "")
     )
 
     mac_ok, mac_msg = mac_notify(title, short[:180])
@@ -62,7 +64,7 @@ def notify_price_drop(
     try:
         with log_path.open("a", encoding="utf-8") as f:
             f.write(
-                f"{cruise_name} | {old_price} -> {new_price} {currency} | {cruise_url}\n"
+                f"{cruise_name} | {old_price} -> {new_price} {currency} | {cabin or '-'} | {cruise_url}\n"
             )
     except Exception:  # noqa: BLE001
         pass
@@ -75,6 +77,7 @@ def notify_price_drop(
             old_price=old_price,
             new_price=new_price,
             currency=currency,
+            cabin=cabin,
         )
     else:
         email_msg = (

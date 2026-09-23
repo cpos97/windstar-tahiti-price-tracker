@@ -992,6 +992,21 @@ input:focus {
 .price-sm.low,
 .low { color: #0d9488; }
 
+.price-cabin {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ocean-mid);
+  margin: -0.15rem 0 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+tr.row-current td {
+  font-weight: 700;
+  color: var(--ocean-mid);
+}
+
 .delta {
   font-size: 0.85rem;
   font-weight: 600;

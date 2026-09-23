@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Query, Request
@@ -18,6 +20,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import config
+from app.categories import load_table
 from app.database import get_db, init_db
 from app.jobs import get_status as get_check_status
 from app.jobs import start_check_all
@@ -25,7 +28,13 @@ from app.models import AlertLog, CabinAvailability, Cruise, PriceHistory
 from app.emailer import send_family_invite_email
 from app.notifier import send_test_alert
 from app.scheduler import start_scheduler, stop_scheduler
-from app.tracker import check_all_active, check_cabin_availability, check_cruise
+from app.tracker import (
+    check_all_active,
+    check_cabin_availability,
+    check_cruise,
+    load_login_status,
+    refresh_login_session,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -415,9 +424,79 @@ def settings_page(request: Request):
         "session_path": str(config.PLAYWRIGHT_STORAGE_STATE),
         "dashboard_url": config.DASHBOARD_URL,
         "intro_flash": intro_flash,
+        "perx_username": config.PERX_USERNAME,
+        "id90_email": config.ID90_EMAIL,
+        "vtg_email": config.VTG_EMAIL,
+        "perx_password_set": bool(config.PERX_PASSWORD),
+        "id90_password_set": bool(config.ID90_PASSWORD),
+        "login_status": _login_status_for_display(),
+        "login_test_running": _login_test_lock.locked(),
     }
     ctx.update(departure_context())
     return templates.TemplateResponse(request, "settings.html", ctx)
+
+
+_login_test_lock = threading.Lock()
+
+
+def _login_status_for_display() -> dict:
+    status = load_login_status()
+    try:
+        status["checked_at"] = datetime.fromisoformat(status["checked_at"])
+    except (KeyError, TypeError, ValueError):
+        status.pop("checked_at", None)
+    return status
+
+
+def _test_logins_in_background() -> bool:
+    """Log in to every site with the saved credentials. False if a test is already running."""
+    if not _login_test_lock.acquire(blocking=False):
+        return False
+
+    def run() -> None:
+        try:
+            refresh_login_session()
+        finally:
+            _login_test_lock.release()
+
+    threading.Thread(target=run, name="login-test", daemon=True).start()
+    return True
+
+
+@app.post("/settings/logins")
+def save_logins(
+    perx_username: str = Form(""),
+    perx_password: str = Form(""),
+    id90_email: str = Form(""),
+    id90_password: str = Form(""),
+    vtg_email: str = Form(""),
+):
+    # Blank password fields mean "keep the saved one" — they are never
+    # pre-filled, so the page can't leak them.
+    values = {
+        "PERX_USERNAME": perx_username.strip(),
+        "ID90_EMAIL": id90_email.strip(),
+        "VTG_EMAIL": vtg_email.strip(),
+    }
+    if perx_password:
+        values["PERX_PASSWORD"] = perx_password
+    if id90_password:
+        values["ID90_PASSWORD"] = id90_password
+    values = {k: v for k, v in values.items() if v}
+    try:
+        config.update_env(values)
+    except (ValueError, OSError) as exc:
+        return RedirectResponse(
+            f"/settings?logins=fail&msg={quote(str(exc)[:150])}#logins", status_code=303
+        )
+    _test_logins_in_background()
+    return RedirectResponse("/settings?logins=saved#logins", status_code=303)
+
+
+@app.post("/settings/logins/test")
+def test_logins():
+    _test_logins_in_background()
+    return RedirectResponse("/settings?logins=testing#logins", status_code=303)
 
 
 @app.post("/cruises")
@@ -495,6 +574,9 @@ def cruise_detail(request: Request, cruise_id: int, db: DbDep):
         "check_interval": config.CHECK_INTERVAL_MINUTES,
         "cabin_availability": cabin_rows,
         "cabin_checked_at": cruise.cabin_last_checked,
+        "category_prices": sorted(
+            load_table(cruise.category_prices), key=lambda r: r.get("price") or 0
+        ),
         "cabin_chart_series": cabin_chart_series,
     }
     ctx.update(departure_context())

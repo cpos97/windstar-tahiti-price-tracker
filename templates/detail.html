@@ -111,19 +111,40 @@
   </form>
 </section>
 
+{% if category_prices %}
+<section class="card table-wrap">
+  <h2>Price by cabin category</h2>
+  <table>
+    <thead>
+      <tr><th>Category</th><th>Cabin type</th><th>Price per person</th></tr>
+    </thead>
+    <tbody>
+      {% for r in category_prices %}
+      <tr{% if cruise.current_price and (r.price - cruise.current_price) | abs < 1 %} class="row-current"{% endif %}>
+        <td>{{ r.code }}</td>
+        <td>{{ r.name }}</td>
+        <td>{{ r.price | money(cruise.currency) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="meta">From ID90 · updated {{ cruise.category_prices_checked | fmt_dt }}</p>
+</section>
+{% endif %}
+
 {% if history %}
 <section class="card table-wrap">
   <h2>Recent readings</h2>
   <table>
     <thead>
-      <tr><th>When</th><th>Price</th><th>Raw text</th></tr>
+      <tr><th>When</th><th>Price</th><th>Cabin</th></tr>
     </thead>
     <tbody>
       {% for h in history %}
       <tr>
         <td>{{ h.checked_at | fmt_dt }}</td>
         <td>{{ h.price | money(cruise.currency) }}</td>
-        <td class="muted">{{ h.raw_text or '—' }}</td>
+        <td class="muted">{{ h.category or '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>

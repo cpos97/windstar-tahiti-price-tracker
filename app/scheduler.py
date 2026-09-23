@@ -133,8 +133,8 @@ def _cabin_job() -> None:
 
 def _session_refresh_job() -> None:
     logger.info("Scheduled login session refresh starting…")
-    ok = refresh_login_session()
-    logger.info("Scheduled login session refresh: ok=%s", ok)
+    ok, msg = refresh_login_session()
+    logger.info("Scheduled login session refresh: ok=%s %s", ok, msg)
 
 
 def start_scheduler() -> None:

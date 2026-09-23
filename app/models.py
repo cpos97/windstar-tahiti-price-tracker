@@ -38,6 +38,14 @@ class Cruise(Base):
     # off a search-results page, so it carries a separate URL for the cabin
     # flow. Empty for normal sources, which use `url` for both.
     cabin_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which cabin the headline price is for, e.g. "Star Porthole Suite (SP)"
+    price_category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # ID90 only: every category's price for this sailing, as JSON
+    # [{"code", "name", "price"}]. Also used to name other sources' prices.
+    category_prices: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category_prices_checked: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     history: Mapped[list[PriceHistory]] = relationship(
@@ -55,6 +63,7 @@ class PriceHistory(Base):
     cruise_id: Mapped[int] = mapped_column(ForeignKey("cruises.id", ondelete="CASCADE"), index=True)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     raw_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True)
     checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     cruise: Mapped[Cruise] = relationship("Cruise", back_populates="history")

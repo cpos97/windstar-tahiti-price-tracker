@@ -167,33 +167,74 @@ ALERT_EMAIL=you@example.com</pre>
   </form>
 </section>
 
-<section class="card">
-  <h2>Site logins (Perx + ID90)</h2>
+<section class="card" id="logins">
+  <h2>Site logins</h2>
+  {% set lq = request.query_params.get('logins') %}
+  {% if lq == 'saved' %}
+    <div class="banner ok">Saved. Testing the logins now — refresh this page in about 2 minutes to see the results.</div>
+  {% elif lq == 'testing' %}
+    <div class="banner ok">Testing the logins now — refresh this page in about 2 minutes.</div>
+  {% elif lq == 'fail' %}
+    <div class="banner warn">{{ request.query_params.get('msg', 'Could not save.') }}</div>
+  {% endif %}
   <p class="muted">
-    Session file: <code>{{ session_path }}</code>
-    {% if session_ok %}
-      <span class="pill ok">Saved</span>
-    {% else %}
-      <span class="pill warn">Not saved yet</span>
+    Used to sign in automatically when a site's session expires. Passwords are
+    stored privately on the server and are never shown here — leave a password
+    box empty to keep the current one.
+  </p>
+
+  {% macro login_status(key, label) %}
+    {% set st = login_status.get(key) %}
+    {% if login_test_running %}
+      <span class="pill muted-pill">Testing…</span>
+    {% elif st and st.ok %}
+      <span class="pill ok">Working</span>
+    {% elif st %}
+      <span class="pill warn" title="{{ st.message }}">Failed</span>
     {% endif %}
-  </p>
-  <p class="muted">
-    Perx needs login to show rates. ID90 usually shows the fare without login
-    (we already track it at $6,216).
-  </p>
-  <div class="howto">
-    <h3>Same style as Resend — put credentials in <code>.env</code></h3>
-    <pre>PERX_USERNAME=your_perx_username
-PERX_PASSWORD=your_perx_password
-ID90_EMAIL=your@email.com
-ID90_PASSWORD=your_id90_password</pre>
-    <p class="muted">Then run:</p>
-    <pre>cd ~/cruise-price-tracker
-source .venv/bin/activate
-python scripts/login_sites.py</pre>
-    <p class="muted">Or interactive browser (type passwords in the window, not in chat):</p>
-    <pre>python scripts/login_sites.py --interactive</pre>
-  </div>
+  {% endmacro %}
+
+  <form class="form-grid" action="/settings/logins" method="post" autocomplete="off">
+    <label>
+      Perx username {{ login_status('perx', 'Perx') }}
+      <input type="text" name="perx_username" value="{{ perx_username }}" autocomplete="off" />
+    </label>
+    <label>
+      Perx password
+      <input type="password" name="perx_password" autocomplete="new-password"
+             placeholder="{{ '•••••••• saved — leave blank to keep' if perx_password_set else 'Enter password' }}" />
+    </label>
+    <label>
+      ID90 email {{ login_status('id90', 'ID90') }}
+      <input type="email" name="id90_email" value="{{ id90_email }}" autocomplete="off" />
+    </label>
+    <label>
+      ID90 password
+      <input type="password" name="id90_password" autocomplete="new-password"
+             placeholder="{{ '•••••••• saved — leave blank to keep' if id90_password_set else 'Enter password' }}" />
+    </label>
+    <label class="span-2">
+      VacationsToGo email <span class="optional">(no password — the site only asks for email)</span> {{ login_status('vtg', 'VacationsToGo') }}
+      <input type="email" name="vtg_email" value="{{ vtg_email }}" autocomplete="off" />
+    </label>
+    <div class="form-actions span-2">
+      <span class="muted" style="font-size:0.85rem">
+        {% if login_status.get('checked_at') %}
+          Last tested {{ login_status.checked_at | fmt_last_checked }}
+          {% for key, label in [('perx','Perx'), ('id90','ID90'), ('vtg','VacationsToGo')] %}
+            {% set st = login_status.get(key) %}
+            {% if st and not st.ok %}<br>{{ label }}: {{ st.message }}{% endif %}
+          {% endfor %}
+        {% else %}
+          Not tested yet
+        {% endif %}
+      </span>
+      <button type="submit" class="btn primary">Save &amp; test logins</button>
+    </div>
+  </form>
+  <form action="/settings/logins/test" method="post" class="btn-row">
+    <button type="submit" class="btn secondary" {% if login_test_running %}disabled{% endif %}>Test current logins</button>
+  </form>
 </section>
 
 <section class="card">

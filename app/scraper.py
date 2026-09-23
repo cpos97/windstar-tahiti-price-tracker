@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+
+from app.categories import label_near_price
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
@@ -52,6 +54,8 @@ class ScrapeResult:
     raw_text: str | None
     error: str | None = None
     page_title: str | None = None
+    # The page's own cabin label next to the price ("Oceanview", "Suite")
+    category_label: str | None = None
 
 
 _MONTHS = (
@@ -422,7 +426,8 @@ def scrape_cruise(
                 )
             price, currency, raw = result
             return ScrapeResult(price=price, currency=currency, raw_text=raw,
-                                error=None, page_title=title)
+                                error=None, page_title=title,
+                                category_label=label_near_price(html, price))
         if css_selector:
             result = extract_with_selector(html, css_selector)
             if result is None:
@@ -458,6 +463,7 @@ def scrape_cruise(
             raw_text=raw,
             error=None,
             page_title=title,
+            category_label=label_near_price(html, price),
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Failed to parse price from %s", url)

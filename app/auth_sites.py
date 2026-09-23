@@ -14,10 +14,13 @@ from app import config
 
 logger = logging.getLogger(__name__)
 
-PERX_LOGIN = "https://perx.com/accounts/login/"
+# Perx retired /accounts/login/ (now a 404); login is a modal on the homepage.
+PERX_LOGIN = "https://perx.com/"
+# Fallback only — the tracked cruise's own URL is preferred (see _tracked_url),
+# because Perx renumbers itineraries and a hard-coded one goes stale.
 PERX_CRUISE = (
     "https://perx.com/cruises/windstar-cruises/star-breeze/"
-    "itineraries/223329/sailings/2027-05-20/"
+    "itineraries/233619/sailings/2027-05-20/"
 )
 # VacationsToGo gates FastDeal pricing behind a members-only page, but the
 # "already a member" form asks for an email address only — there is no
@@ -29,8 +32,33 @@ ID90_LOGIN = "https://www.id90travel.com/login"
 ID90_CRUISE = (
     "https://cruise.id90travel.com/cs/forms/CruiseDetails.aspx"
     "?skin=636&did=-1&mon=5%2F1%2F2027&vid=664&pid=9476"
-    "&pin=W8-1386879-1401&iid=3675695&sno=1"
+    "&pin=W8-1386879-1401&iid=4216556&sno=1"
 )
+
+
+def _tracked_url(domain: str, fallback: str) -> str:
+    """Current URL of the tracked (non-benchmark) cruise on this site.
+
+    Login checks load a real sailing page to prove rates are visible. Using
+    the URL the tracker already keeps up to date means a vendor renumbering
+    its pages can't make every login look like a failure.
+    """
+    try:
+        from app.database import SessionLocal
+        from app.models import Cruise
+
+        db = SessionLocal()
+        try:
+            for c in db.query(Cruise).filter(Cruise.active.is_(True)).all():
+                if c.is_benchmark:
+                    continue
+                if domain in (c.url or "").lower():
+                    return c.url
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not look up tracked %s URL; using fallback", domain)
+    return fallback
 
 
 def _dismiss_cookies(page: Page) -> None:
@@ -79,8 +107,11 @@ def perx_looks_logged_in(page: Page) -> bool:
 
 def id90_looks_logged_in(page: Page) -> bool:
     url = page.url.lower()
-    if "/login" in url or "/up-auth/login" in url:
+    if "/login" in url or "/up-auth/" in url:
         return False
+    # A successful login redirects to the members' search pages
+    if "id90travel.com/search" in url:
+        return True
     try:
         text = page.inner_text("body").lower()
     except Exception:  # noqa: BLE001
@@ -133,236 +164,116 @@ def login_vtg(page: Page, email: str) -> tuple[bool, str]:
 
 def login_perx(page: Page, username: str, password: str) -> tuple[bool, str]:
     page.goto(PERX_LOGIN, wait_until="domcontentloaded", timeout=45_000)
-    page.wait_for_timeout(1500)
+    page.wait_for_timeout(2500)
     _dismiss_cookies(page)
     page.wait_for_timeout(800)
 
-    # Expand login accordion if needed (page has a hidden mobile form + desktop form)
-    for sel in ("a[href='#login-accordion']", "text=Log In", "#login-accordion"):
-        try:
-            loc = page.locator(sel).first
-            if loc.count() and loc.is_visible(timeout=400):
-                loc.click(timeout=2000)
-                page.wait_for_timeout(600)
-        except Exception:  # noqa: BLE001
-            pass
-
-    # Use the visible username/password fields (not the first hidden ones)
+    # Open the login modal from the header
     try:
-        user = page.locator("input[name='username']:visible").first
-        pwd = page.locator("input[name='password']:visible").first
+        page.locator(
+            "a[data-target='#login-modal']:visible, a[href='#login-modal']:visible"
+        ).first.click(timeout=10_000)
+        page.wait_for_timeout(1500)
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Could not open the Perx login window: {exc}"
+
+    modal = page.locator("#login-modal")
+    try:
+        user = modal.locator("input[name='username']").first
         user.wait_for(state="visible", timeout=12_000)
-        user.click()
-        user.fill("")
         user.fill(username)
-        pwd.click()
-        pwd.fill("")
-        pwd.fill(password)
+        modal.locator("input[name='password']").first.fill(password)
+        remember = modal.locator("input[name='remember_me']").first
+        if remember.count() and not remember.is_checked():
+            remember.check(force=True)
     except Exception as exc:  # noqa: BLE001
         return False, f"Could not fill Perx login form: {exc}"
 
-    # Submit the visible form
-    submitted = False
     try:
-        form = page.locator("form[action='/login']:visible").first
-        if form.count():
-            btn = form.locator("button[type='submit'], input[type='submit'], button:has-text('Login'), button:has-text('Log In')").first
-            if btn.count() and btn.is_visible(timeout=500):
-                btn.click()
-                submitted = True
+        modal.locator(
+            "button[type='submit'], input[type='submit'], button:has-text('Log In')"
+        ).first.click(timeout=5_000)
     except Exception:  # noqa: BLE001
-        pass
+        modal.locator("input[name='password']").first.press("Enter")
 
-    if not submitted:
-        for sel in (
-            "form[action='/login']:visible button",
-            "button:has-text('Login'):visible",
-            "button:has-text('Log In'):visible",
-            "input[type='submit']:visible",
-        ):
-            try:
-                btn = page.locator(sel).first
-                if btn.count() and btn.is_visible(timeout=500):
-                    btn.click()
-                    submitted = True
-                    break
-            except Exception:  # noqa: BLE001
-                continue
-    if not submitted:
-        page.keyboard.press("Enter")
-
-    page.wait_for_timeout(5000)
-    # Follow redirects / land somewhere non-login
-    for _ in range(20):
-        url = page.url.lower()
-        if "/accounts/login" not in url and "/login" not in url:
-            break
-        if perx_looks_logged_in(page):
-            break
-        # Wrong password message?
+    for _ in range(15):
+        page.wait_for_timeout(1000)
         try:
             body_l = page.inner_text("body").lower()
-            if any(x in body_l for x in ("invalid", "incorrect", "wrong password", "please enter a correct")):
-                return False, "Perx rejected credentials (invalid username/password)"
         except Exception:  # noqa: BLE001
-            pass
-        page.wait_for_timeout(1000)
+            continue
+        if any(x in body_l for x in ("please enter a correct", "invalid username", "incorrect")):
+            return False, "Perx rejected the username/password — update them in Settings"
+        if "log out" in body_l:
+            break
 
-    # Verify rates page
-    page.goto(PERX_CRUISE, wait_until="domcontentloaded", timeout=45_000)
+    # Prove rates are visible on the sailing we actually track
+    page.goto(
+        _tracked_url("perx.com", PERX_CRUISE), wait_until="domcontentloaded", timeout=45_000
+    )
     page.wait_for_timeout(5000)
     _dismiss_cookies(page)
     body = page.inner_text("body")
-    body_l = body.lower()
-    if "log in for rates" in body_l:
-        return False, "Perx still shows 'Log in for rates' — check username/password"
-    # Prefer seeing a real fare
-    if "$" in body or "USD" in body:
-        return True, "Perx login OK (cruise page loaded without login wall)"
+    if "log in for rates" in body.lower():
+        return False, "Perx still shows 'Log in for rates' — check username/password in Settings"
+    if re.search(r"\$\s*\d{3,}", body):
+        return True, "Perx login OK (rates visible)"
     if perx_looks_logged_in(page):
         return True, "Perx login OK"
-    return False, "Perx login may have failed (could not confirm session)"
+    return False, "Perx login could not be confirmed"
 
 
 def login_id90(page: Page, email: str, password: str) -> tuple[bool, str]:
-    """
-    ID90 airline login: email/username first, then password.
-    Usernames like name@company (no full domain) are supported.
-    """
-    page.goto(ID90_LOGIN, wait_until="domcontentloaded", timeout=45_000)
-    page.wait_for_timeout(2000)
-    _dismiss_cookies(page)
-    page.wait_for_timeout(800)
-
-    # Some accounts use "Log in with Company Name" instead of email-only
+    """ID90's two-step login: email -> Next -> password -> Next."""
     try:
-        company_link = page.get_by_text("Log in with Company Name", exact=False)
-        if company_link.count() and company_link.first.is_visible(timeout=800):
-            # Keep default email flow first; company link is fallback later
-            pass
-    except Exception:  # noqa: BLE001
-        pass
+        page.goto(ID90_LOGIN, wait_until="domcontentloaded", timeout=45_000)
+        page.wait_for_timeout(3000)
+        _dismiss_cookies(page)
+        page.wait_for_timeout(800)
 
-    # Username / email step — accept email or text inputs
-    try:
-        user_box = page.locator(
-            "input#email:visible, input[type='email']:visible, "
-            "input[name='email']:visible, input[type='text']:visible, "
-            "input[name='username']:visible"
-        ).first
-        user_box.wait_for(state="visible", timeout=12_000)
-        # type=email may block incomplete domains; remove validation via JS fill
-        page.evaluate(
-            """([sel, val]) => {
-              const el = document.querySelector(sel) ||
-                document.querySelector('input#email') ||
-                document.querySelector('input[type=email]') ||
-                document.querySelector('input[type=text]');
-              if (!el) return;
-              el.removeAttribute('type');
-              el.setAttribute('type', 'text');
-              el.value = val;
-              el.dispatchEvent(new Event('input', { bubbles: true }));
-              el.dispatchEvent(new Event('change', { bubbles: true }));
-            }""",
-            ["input#email", email],
-        )
-        try:
-            user_box.fill(email)
-        except Exception:  # noqa: BLE001
-            pass
-        page.wait_for_timeout(400)
-        page.keyboard.press("Enter")
-        page.wait_for_timeout(1500)
-        for label in ("Continue", "Next", "Log in", "Login", "Submit", "Sign in"):
-            try:
-                b = page.get_by_role("button", name=label)
-                if b.count() and b.first.is_visible(timeout=400):
-                    b.first.click()
-                    page.wait_for_timeout(2000)
-                    break
-            except Exception:  # noqa: BLE001
-                pass
-        # Also try submit inputs
-        try:
-            page.locator("button[type='submit']:visible, input[type='submit']:visible").first.click(timeout=1500)
-            page.wait_for_timeout(2000)
-        except Exception:  # noqa: BLE001
-            pass
-    except Exception as exc:  # noqa: BLE001
-        return False, f"ID90 username step failed: {exc}"
+        box = page.locator("input[type='email']:visible, input[name='email']:visible").first
+        box.wait_for(state="visible", timeout=15_000)
+        box.fill(email)
+        page.get_by_role("button", name="Next").first.click()
 
-    # Password step (if shown)
-    try:
         pwd = page.locator("input[type='password']:visible").first
-        if pwd.is_visible(timeout=10_000):
-            pwd.fill(password)
-            page.wait_for_timeout(300)
-            page.keyboard.press("Enter")
-            page.wait_for_timeout(2500)
-            for label in ("Log in", "Login", "Continue", "Sign in", "Submit"):
-                try:
-                    b = page.get_by_role("button", name=label)
-                    if b.count() and b.first.is_visible(timeout=400):
-                        b.first.click()
-                        page.wait_for_timeout(3000)
-                        break
-                except Exception:  # noqa: BLE001
-                    pass
-        else:
-            return (
-                False,
-                "ID90 password field did not appear after username. "
-                "Company SSO may be required — try interactive login.",
-            )
-    except Exception:
-        return (
-            False,
-            "ID90 needs interactive login (SSO / company step). "
-            "Use: python scripts/login_sites.py --interactive",
-        )
+        pwd.wait_for(state="visible", timeout=20_000)
+        pwd.fill(password)
+        page.get_by_role("button", name="Next").first.click()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"ID90 login form step failed: {exc}"
 
-    for _ in range(20):
+    for _ in range(25):
+        page.wait_for_timeout(1000)
         if id90_looks_logged_in(page):
             break
+        url = page.url.lower()
+        if "company-selection" in url:
+            return False, "ID90 could not locate the account from this email"
         try:
             body_l = page.inner_text("body").lower()
-            if any(
-                x in body_l
-                for x in (
-                    "invalid",
-                    "incorrect",
-                    "wrong password",
-                    "couldn't find",
-                    "not found",
-                    "try again",
-                )
-            ):
-                # Still attempt cruise page — public rates may work
-                break
         except Exception:  # noqa: BLE001
-            pass
-        page.wait_for_timeout(1000)
+            continue
+        if "enter-password" in url and any(
+            x in body_l for x in ("incorrect", "invalid", "wrong password", "try again")
+        ):
+            return False, "ID90 rejected the password — update it in Settings"
+    else:
+        return False, f"ID90 login did not complete (stuck at {page.url[:80]})"
 
-    # Cruise page (often works without login; confirm price still loads)
+    # Prove the tracked sailing page loads with a rate
     try:
-        page.goto(ID90_CRUISE, wait_until="domcontentloaded", timeout=45_000)
-        page.wait_for_timeout(3500)
-        body = page.inner_text("body")
-        if "USD" in body or "$" in body or "6216" in body or "price" in body.lower():
-            if id90_looks_logged_in(page):
-                return True, "ID90 login OK + cruise page loads"
-            return True, "ID90 cruise price page loads (session saved)"
+        page.goto(
+            _tracked_url("id90travel", ID90_CRUISE),
+            wait_until="domcontentloaded",
+            timeout=60_000,
+        )
+        page.wait_for_timeout(4000)
+        if re.search(r"USD\s*\$?\s*\d{3,}|\$\s*\d{3,}", page.inner_text("body")):
+            return True, "ID90 login OK (rates visible)"
     except Exception as exc:  # noqa: BLE001
-        return False, f"ID90 cruise page failed: {exc}"
-
-    if id90_looks_logged_in(page):
-        return True, "ID90 login OK"
-    return (
-        False,
-        "ID90 login not fully confirmed. Cruise rates often work without login; "
-        "re-try interactive setup if needed.",
-    )
+        logger.warning("ID90 cruise page check failed after login: %s", exc)
+    return True, "ID90 login OK"
 
 
 def save_session_with_credentials(

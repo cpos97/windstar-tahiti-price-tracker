@@ -202,3 +202,40 @@ def verify_cron_secret(provided: str | None) -> bool:
     for a, b in zip(expected.encode(), got.encode()):
         result |= a ^ b
     return result == 0
+
+
+# ── Site logins editable from the Settings page ──────────────────────────────
+# Written back to .env (gitignored, chmod 600) rather than the database, so
+# passwords never end up in the repo, in DB backups, or in CI caches.
+EDITABLE_LOGIN_KEYS = ("PERX_USERNAME", "PERX_PASSWORD", "ID90_EMAIL", "ID90_PASSWORD", "VTG_EMAIL")
+
+
+def update_env(values: dict[str, str]) -> None:
+    """Set KEY=value lines in .env and apply them to this running process."""
+    import re as _re
+
+    for key, val in values.items():
+        if key not in EDITABLE_LOGIN_KEYS:
+            raise ValueError(f"{key} is not editable")
+        if "\n" in val or "\r" in val:
+            raise ValueError("Values cannot contain line breaks")
+
+    path = BASE_DIR / ".env"
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    for key, val in values.items():
+        escaped = val.replace("\\", "\\\\").replace('"', '\\"')
+        line = f'{key}="{escaped}"'
+        pattern = _re.compile(rf"^{key}=.*$", _re.MULTILINE)
+        if pattern.search(text):
+            text = pattern.sub(lambda _m: line, text)
+        else:
+            text = text.rstrip("\n") + f"\n{line}\n"
+
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+    for key, val in values.items():
+        os.environ[key] = val
+        globals()[key] = val.strip() if key == "VTG_EMAIL" else val
