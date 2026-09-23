@@ -1,4 +1,4 @@
-"""Check remaining cabin counts for specific Ocean View Suite categories on ID90.
+"""Check remaining cabin counts for the Star Porthole + Ocean View Suite categories on ID90.
 
 This walks ID90's live booking flow (category list -> per-category cabin
 picker) since remaining-inventory counts aren't shown on the summary page —
@@ -17,7 +17,7 @@ from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
-TARGET_CATEGORIES = ["S", "S1", "SS1", "S2", "S3"]
+TARGET_CATEGORIES = ["SP", "S", "S1", "SS1", "S2", "S3"]
 
 
 def _wait_for_title(page, contains: str, timeout_s: int = 45) -> bool:

@@ -195,7 +195,7 @@ app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 DbDep = Annotated[Session, Depends(get_db)]
 
-CABIN_CATEGORY_ORDER = ["S", "S1", "SS1", "S2", "S3"]
+CABIN_CATEGORY_ORDER = ["SP", "S", "S1", "SS1", "S2", "S3"]
 
 
 def _history_points(rows: list[PriceHistory]) -> list[dict]:

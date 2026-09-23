@@ -378,7 +378,7 @@ def _refresh_cabin_url(cruise: Cruise, storage_state: str | None) -> str | None:
 
 
 def check_cabin_availability(db: Session, cruise: Cruise) -> dict:
-    """Check remaining cabins for the tracked Ocean View Suite categories (ID90 only)."""
+    """Check remaining cabins for the tracked Star Porthole + Ocean View categories (ID90 only)."""
     from app import config
     from app.cabin_scraper import check_categories
 

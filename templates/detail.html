@@ -81,7 +81,7 @@
   <h2>Cabin availability</h2>
   <p class="muted">
     {% if cabin_checked_at %}Last checked {{ cabin_checked_at | fmt_last_checked }}{% endif %}
-    &middot; Ocean View Suite categories only, checked once daily
+    &middot; Star Porthole + Ocean View Suite categories, checked once daily
   </p>
   <table>
     <thead>
@@ -99,7 +99,7 @@
   </table>
   {% if cabin_chart_series|length >= 1 %}
   <div style="margin-top:1rem;display:flex;justify-content:space-between;align-items:baseline">
-    <span class="price-history-title" id="cabinChartTitle">Total ocean view cabins available</span>
+    <span class="price-history-title" id="cabinChartTitle">Total cabins available</span>
     <button type="button" class="btn secondary btn-sm" id="cabinChartToggle">Show by category</button>
   </div>
   <canvas id="cabinChart" height="100" style="margin-top:0.5rem"></canvas>
@@ -295,7 +295,7 @@
       if (cabinShowingTotal) {
         cabinChart.data.datasets = cabinTotalDataset;
         cabinChart.options.plugins.legend.display = false;
-        cabinTitleEl.textContent = 'Total ocean view cabins available';
+        cabinTitleEl.textContent = 'Total cabins available';
         cabinToggleBtn.textContent = 'Show by category';
       } else {
         cabinChart.data.datasets = cabinByCategoryDatasets;
