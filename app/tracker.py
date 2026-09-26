@@ -271,6 +271,11 @@ def check_cruise(db: Session, cruise: Cruise) -> dict:
             now.isoformat(),
         )
 
+    # Only a new all-time low is worth an email. Measured against the lowest
+    # price seen *before* this reading: a rebound from $2,000 to $3,000 and
+    # back down to $2,500 is not news, only dipping under $2,000 is.
+    prior_lowest = cruise.lowest_price
+
     # Update aggregates
     if cruise.lowest_price is None or new_price < cruise.lowest_price:
         cruise.lowest_price = new_price
@@ -279,13 +284,18 @@ def check_cruise(db: Session, cruise: Cruise) -> dict:
 
     alert_info = None
     # The Nov benchmark is tracked for comparison only — never email about it
-    if not cruise.is_benchmark and old_price is not None and new_price < old_price - 0.009:
-        cruise.previous_price = old_price
+    if (
+        not cruise.is_benchmark
+        and prior_lowest is not None
+        and new_price < prior_lowest - 0.009
+    ):
+        if old_price is not None and abs(old_price - new_price) >= 0.01:
+            cruise.previous_price = old_price
         cruise.current_price = new_price
         notify = notify_price_drop(
             cruise_name=cruise.name,
             cruise_url=cruise.url,
-            old_price=old_price,
+            old_price=prior_lowest,
             new_price=new_price,
             currency=cruise.currency,
             cabin=cruise.price_category,
@@ -295,7 +305,7 @@ def check_cruise(db: Session, cruise: Cruise) -> dict:
         recipients = ", ".join(p["email"] for p in config.alert_recipients())
         alert = AlertLog(
             cruise_id=cruise.id,
-            old_price=old_price,
+            old_price=prior_lowest,
             new_price=new_price,
             sent_to=recipients or "Mac notification",
             success=bool(notify.get("ok")),
@@ -305,15 +315,15 @@ def check_cruise(db: Session, cruise: Cruise) -> dict:
         alert_info = {
             "sent": notify.get("ok"),
             "message": notify.get("message"),
-            "old": old_price,
+            "old": prior_lowest,
             "new": new_price,
             "mac_ok": notify.get("mac_ok"),
             "email_ok": notify.get("email_ok"),
         }
         logger.info(
-            "Price drop on %s: %.2f -> %.2f (%s)",
+            "New lowest price on %s: %.2f -> %.2f (%s)",
             cruise.name,
-            old_price,
+            prior_lowest,
             new_price,
             notify.get("message"),
         )

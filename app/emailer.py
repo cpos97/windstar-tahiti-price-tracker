@@ -16,7 +16,7 @@ from app import config
 
 logger = logging.getLogger(__name__)
 
-PRICE_DROP_SUBJECT = "YOUR TAHITI CRUISE DROPPED IN PRICE!"
+PRICE_DROP_SUBJECT = "YOUR TAHITI CRUISE HIT A NEW LOW PRICE!"
 MOM_INTRO_SUBJECT = "🌴 We're going to Tahiti! Check out our family trip tracker"
 
 
@@ -104,7 +104,7 @@ def _price_drop_html(
                       💰 You save: {saved} per person!
                     </p>
                     <p style="margin:8px 0 0 0;font-size:14px;color:#8A7560;">
-                      That’s {pct}% off the last price we saw
+                      That’s {pct}% below the lowest price we’d seen before
                     </p>
                   </td>
                 </tr>
@@ -115,7 +115,7 @@ def _price_drop_html(
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td align="center" style="background-color:#F7F3EE;border-radius:14px;padding:18px 12px;border:1px solid #E8DFD2;">
-                          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#8A7560;font-weight:700;">Previous price</p>
+                          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#8A7560;font-weight:700;">Previous lowest</p>
                           <p style="margin:0;font-size:22px;color:#94A3B8;text-decoration:line-through;font-weight:600;">{was}</p>
                         </td>
                       </tr>
@@ -126,7 +126,7 @@ def _price_drop_html(
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td align="center" style="background-color:#E8FAF7;border-radius:14px;padding:18px 12px;border:1px solid #B8EBE4;">
-                          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#0D6B63;font-weight:700;">Current price</p>
+                          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#0D6B63;font-weight:700;">New lowest</p>
                           <p style="margin:0;font-size:26px;color:#0A3D5C;font-weight:700;font-family:Georgia,serif;">{now}</p>
                           {cabin_html}
                         </td>
@@ -199,11 +199,11 @@ WHICH CRUISE
 {cruise_name}
 
 THE PRICE CUT
-You save: {_money(drop, currency)} per person! ({drop_pct:.1f}% off)
+You save: {_money(drop, currency)} per person vs. the previous lowest! ({drop_pct:.1f}% off)
 
-Previous price: {_money(old_price, currency)}
-Current price:  {_money(new_price, currency)}
-Cabin:          {cabin or "Not specified by this site"}
+Previous lowest: {_money(old_price, currency)}
+New lowest:      {_money(new_price, currency)}
+Cabin:           {cabin or "Not specified by this site"}
 
 View Live Pricing Tracker:
 {config.DASHBOARD_URL}
