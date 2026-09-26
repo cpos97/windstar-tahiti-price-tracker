@@ -129,6 +129,9 @@
       <span class="benchmark-text">
         {{ benchmark_label }} &middot;
         <strong>{{ benchmark.current_price | money(benchmark.currency) }}</strong>
+        {% if benchmark.lowest_price %}
+        <span class="benchmark-low">&middot; lowest {{ benchmark.lowest_price | money(benchmark.currency) }}</span>
+        {% endif %}
       </span>
       <span class="benchmark-diff {% if diff < 0 %}over{% else %}under{% endif %}">
         {% if diff < 0 %}-{% endif %}{{ (diff | abs) | money(c.currency) }}

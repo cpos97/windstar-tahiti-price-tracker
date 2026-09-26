@@ -660,6 +660,12 @@ a.benchmark-row:focus-visible {
   border-color: rgba(15, 76, 117, 0.22);
 }
 
+.benchmark-low {
+  color: #0d6b63;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .benchmark-go {
   font-size: 1.1rem;
   line-height: 1;
