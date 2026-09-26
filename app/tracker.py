@@ -251,7 +251,7 @@ def check_cruise(db: Session, cruise: Cruise) -> dict:
         if cabin_check_supported(cruise):
             _refresh_category_prices(cruise, new_price, price_changed=should_record)
         cruise.price_category = resolve(
-            new_price, result.category_label, _id90_table_for(db, cruise)
+            new_price, result.category_label, _id90_table_for(db, cruise), cruise.url
         )
 
     if should_record:

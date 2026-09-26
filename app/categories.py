@@ -70,9 +70,22 @@ def load_table(raw: str | None) -> list[dict]:
     return table if isinstance(table, list) else []
 
 
-def resolve(price: float, site_label: str | None, id90_table: list[dict]) -> str | None:
+# How to read a site's own broad label when no ID90 category has the exact
+# price. VacationsToGo's plain "Suite" fare is its Ocean View Suite.
+SITE_LABEL_ALIASES = {
+    "vacationstogo.com": {"suite": "Ocean View Suite"},
+}
+
+
+def resolve(
+    price: float, site_label: str | None, id90_table: list[dict], url: str = ""
+) -> str | None:
     """Best name for the cabin behind `price`."""
     for row in sorted(id90_table, key=lambda r: r.get("price") or 0):
         if abs((row.get("price") or 0) - price) < 1:
             return f"{row['name']} ({row['code']})"
+    if site_label:
+        for domain, aliases in SITE_LABEL_ALIASES.items():
+            if domain in url.lower():
+                return aliases.get(site_label.lower(), site_label)
     return site_label
