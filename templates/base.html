@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}Postma Trips · Price Tracker{% endblock %}</title>
+  <title>{% block title %}Trip Tracker{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="/static/style.css?v={{ static_version() }}" />
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}theme-neutral{% endblock %}">
   <header class="topbar">
     <a class="brand" href="/">
-      <span class="brand-icon">🌴</span>
+      <span class="brand-icon">🧭</span>
       <span>
-        Postma Trips
-        <span class="brand-sub">Family Travel · Price Tracker</span>
+        Trip Tracker
+        <span class="brand-sub">Travel Deals · Price Tracker</span>
       </span>
     </a>
     <nav>

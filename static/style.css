@@ -34,11 +34,30 @@ body {
   color: var(--slate);
   line-height: 1.55;
   background-color: #0a3d5c;
-  background-image: url("/static/polynesia-bg.jpg");
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
   background-attachment: fixed;
+}
+
+/* Each trip gets its own backdrop; home, login and settings stay neutral */
+body.theme-tahiti {
+  background-image: url("/static/polynesia-bg.jpg");
+}
+
+body.theme-caribbean {
+  background-color: #0b5d6e;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 85% 0%, rgba(255, 236, 179, 0.45), transparent 60%),
+    radial-gradient(ellipse 90% 60% at 10% 100%, rgba(127, 214, 201, 0.55), transparent 65%),
+    linear-gradient(180deg, #0b4f6c 0%, #0e7c8c 38%, #22a6a8 72%, #5cc8bf 100%);
+}
+
+body.theme-neutral {
+  background-color: #0a2540;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(72, 202, 228, 0.18), transparent 70%),
+    linear-gradient(165deg, #0a2540 0%, #0a3d5c 55%, #124d6e 100%);
 }
 
 /* Soft overlay so text stays readable over the lagoon */
