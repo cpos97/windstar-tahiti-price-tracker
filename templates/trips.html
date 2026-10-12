@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Trip Tracker{% endblock %}
 {% block body_class %}theme-palms{% endblock %}
-{% block footer_text %}Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 6 h · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Winter Getaway photo: Navin75</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
+{% block footer_text %}Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 6 h · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Winter Getaway photo: Navin75</a>, <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Moraine_Lake_at_evening4.jpg" target="_blank" rel="noopener">Banff photo: David Zhang</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
 
 {% block content %}
 {# Palm silhouettes: one shape, drawn twice (mirrored on the right) #}
@@ -56,12 +56,30 @@
   <a class="trip-tile tile-caribbean" href="/getaways">
     <span class="tile-icon" aria-hidden="true">🏝️</span>
     <span class="tile-body">
-      <span class="tile-kicker">Vacation rentals · {{ getaway_season }}</span>
+      <span class="tile-kicker">Vacation rentals · {{ winter.season }}</span>
       <span class="tile-title">Winter Getaway</span>
       <span class="tile-stats">
-        <span class="tile-chip">{{ getaway_matches }} match{% if getaway_matches != 1 %}es{% endif %}</span>
-        {% if getaway_cheapest %}
-        <span class="tile-chip">From {{ '$%.0f' | format(getaway_cheapest.cheapest_price) }}/night</span>
+        <span class="tile-chip">{{ winter.matches }} match{% if winter.matches != 1 %}es{% endif %}</span>
+        {% if winter.cheapest %}
+        <span class="tile-chip">From {{ '$%.0f' | format(winter.cheapest.cheapest_price) }}/night</span>
+        {% endif %}
+      </span>
+    </span>
+    <span class="tile-go" aria-hidden="true">›</span>
+  </a>
+
+  <a class="trip-tile tile-banff" href="/banff">
+    <span class="tile-icon" aria-hidden="true">🏔️</span>
+    <span class="tile-body">
+      <span class="tile-kicker">WorldMark Canmore · {{ banff.season }}</span>
+      <span class="tile-title">Summer Banff Vacation</span>
+      <span class="tile-stats">
+        {% if banff_days_to_go is not none and banff_days_to_go >= 0 %}
+        <span class="tile-chip">{{ banff_days_to_go }} days to go</span>
+        {% endif %}
+        <span class="tile-chip">{{ banff.matches }} deal{% if banff.matches != 1 %}s{% endif %} under $200</span>
+        {% if banff.cheapest %}
+        <span class="tile-chip">From {{ '$%.0f' | format(banff.cheapest.cheapest_price) }}/night</span>
         {% endif %}
       </span>
     </span>

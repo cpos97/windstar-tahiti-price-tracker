@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import secrets
 import threading
@@ -145,6 +146,13 @@ def departure_context() -> dict:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    from app.database import SessionLocal
+
+    _db = SessionLocal()
+    try:
+        getaways.backfill_trip_keys(_db)  # before the scheduler's first getaway check
+    finally:
+        _db.close()
     start_scheduler()
     logger.info(
         "Windstar Tahiti Price Tracker ready at http://%s:%s",
@@ -300,9 +308,25 @@ def login_submit(request: Request, password: Annotated[str, Form()], next: Annot
     return RedirectResponse(f"/login?next={quote(next)}&error=1", status_code=303)
 
 
+def _trip_summary(db: Session, trip: getaways.Trip) -> dict:
+    """Headline numbers for a getaway trip's home-page tile."""
+    start, end = getaways.season_window(trip)
+    active = db.query(GetawayListing).filter(
+        GetawayListing.trip == trip.key, GetawayListing.active.is_(True)
+    )
+    best = [b for b in getaways.cheapest_by_source(db, trip).values() if b is not None]
+    return {
+        "trip": trip,
+        "season": f"{start:%b %-d} – {end:%b %-d, %Y}",
+        "matches": active.filter(GetawayListing.kind == "match").count(),
+        "near": active.filter(GetawayListing.kind == "near").count(),
+        "cheapest": min(best, key=lambda b: b.cheapest_price, default=None),
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def trips_home(request: Request, db: DbDep):
-    """Home page: one card per trip being watched."""
+    """Home page: one tile per trip being watched."""
     cruises = (
         db.query(Cruise)
         .filter(Cruise.is_benchmark.isnot(True), Cruise.active.is_(True))
@@ -315,27 +339,16 @@ def trips_home(request: Request, db: DbDep):
         days_to_go = (date.fromisoformat(dep["departure_iso"][:10]) - date.today()).days
     except ValueError:
         days_to_go = None
-    tahiti_checked = max((c.last_checked for c in cruises if c.last_checked), default=None)
 
-    start, end = getaways.season_window()
-    active_listings = db.query(GetawayListing).filter(GetawayListing.active.is_(True))
-    statuses = db.query(GetawayResortStatus).all()
-    cheapest = min(
-        (st for st in statuses if st.cheapest_price is not None),
-        key=lambda st: st.cheapest_price,
-        default=None,
-    )
+    winter = _trip_summary(db, getaways.TRIPS["winter"])
+    banff = _trip_summary(db, getaways.TRIPS["banff"])
+    booking = getaways.TRIPS["banff"].booking
     ctx = {
         "tahiti_best": best,
-        "tahiti_sources": len(cruises),
-        "tahiti_checked": tahiti_checked,
         "days_to_go": days_to_go,
-        "getaway_matches": active_listings.filter(GetawayListing.kind == "match").count(),
-        "getaway_near": active_listings.filter(GetawayListing.kind == "near").count(),
-        "getaway_cheapest": cheapest,
-        "getaway_checked": max((st.last_checked for st in statuses if st.last_checked), default=None),
-        "getaway_season": f"{start:%b} – {end:%b %Y}",
-        "getaway_resorts": len(getaways.RESORTS),
+        "winter": winter,
+        "banff": banff,
+        "banff_days_to_go": (booking["check_in"] - date.today()).days if booking else None,
         "check_interval": config.CHECK_INTERVAL_MINUTES,
         "email_ok": config.email_configured(),
     }
@@ -343,17 +356,60 @@ def trips_home(request: Request, db: DbDep):
     return templates.TemplateResponse(request, "trips.html", ctx)
 
 
-@app.get("/getaways", response_class=HTMLResponse)
-def getaways_page(request: Request, db: DbDep):
-    """Winter Getaway dashboard — laid out like the Tahiti one."""
-    start, end = getaways.season_window()
+# How each getaway trip's dashboard looks and reads
+TRIP_LOOKS = {
+    "winter": {
+        "body_class": "theme-caribbean",
+        "icon": "🏝️",
+        "subtitle": "Island Hopping",
+        "highlight_eyebrow": "Resorts we're watching",
+        "highlight_title": "Winter sun awaits",
+        "tagline": "“Sun, sand, and a deal worth catching!”",
+        "near_text": "In season and under $200/night, but the length or check-in day is off",
+        "near_empty": "None right now. Owners will sometimes split a week if you ask, so these are worth a look when they appear.",
+        "photo": {
+            "title": "Trunk Bay, St. John",
+            "author": "Navin75",
+            "url": "https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg",
+            "license": "CC BY-SA 2.0",
+            "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+        },
+    },
+    "banff": {
+        "body_class": "theme-banff",
+        "icon": "🏔️",
+        "subtitle": "Rocky Mountain Summer",
+        "highlight_eyebrow": "Your booking",
+        "highlight_title": "The Rockies are calling",
+        "tagline": "“Mountains, lakes, and a better deal if one turns up!”",
+        "near_text": "Under $200/night, but a bigger unit than you asked for",
+        "near_empty": "None right now.",
+        "photo": {
+            "title": "Moraine Lake, Banff",
+            "author": "David Zhang",
+            "url": "https://commons.wikimedia.org/wiki/File:Moraine_Lake_at_evening4.jpg",
+            "license": "CC BY-SA 2.0",
+            "license_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+        },
+    },
+}
+
+
+def _getaway_dashboard(request: Request, db: Session, trip: getaways.Trip) -> HTMLResponse:
+    """A getaway trip's dashboard — laid out like the Tahiti one."""
+    start, end = getaways.season_window(trip)
     today = date.today()
-    if today < start:
+    if trip.booking and today <= trip.booking["check_in"]:
+        countdown_iso = f"{trip.booking['check_in'].isoformat()}T16:00:00"
+        countdown_title = "Days until Banff" if trip.key == "banff" else "Days until the trip"
+    elif today < start:
         countdown_iso, countdown_title = f"{start.isoformat()}T00:00:00", "Days until the season"
     else:
         countdown_iso, countdown_title = f"{end.isoformat()}T23:59:59", "Days left in the season"
 
-    active = db.query(GetawayListing).filter(GetawayListing.active.is_(True))
+    active = db.query(GetawayListing).filter(
+        GetawayListing.trip == trip.key, GetawayListing.active.is_(True)
+    )
     matches = active.filter(GetawayListing.kind == "match").order_by(GetawayListing.check_in).all()
     near = (
         active.filter(GetawayListing.kind == "near")
@@ -361,14 +417,17 @@ def getaways_page(request: Request, db: DbDep):
         .limit(60)
         .all()
     )
-    statuses = {(st.resort, st.source): st for st in db.query(GetawayResortStatus).all()}
-    best = getaways.cheapest_by_source(db)
+    statuses = {
+        (st.resort, st.source): st
+        for st in db.query(GetawayResortStatus).filter(GetawayResortStatus.trip == trip.key).all()
+    }
+    best = getaways.cheapest_by_source(db, trip)
 
     sources = []
     for src in getaways.SOURCES:
         rows = (
             db.query(GetawayPriceHistory)
-            .filter(GetawayPriceHistory.source == src)
+            .filter(GetawayPriceHistory.trip == trip.key, GetawayPriceHistory.source == src)
             .order_by(GetawayPriceHistory.checked_at.asc())
             .all()
         )
@@ -404,36 +463,69 @@ def getaways_page(request: Request, db: DbDep):
             }
         )
 
-    resort_cols = [
-        {
-            "name": r["name"],
-            "short": r.get("short", r["name"]),
-            "cells": {src: statuses.get((r["name"], src)) for src in getaways.SOURCES},
-        }
-        for r in getaways.RESORTS
-    ]
+    # The grid: by resort for multi-resort trips, by unit size when the trip
+    # cares about bedrooms (Banff watches one resort, so resorts would be one column)
+    if trip.bedrooms is not None:
+        grid_cols = []
+        for b in trip.bedrooms:
+            cells = {}
+            for src in getaways.SOURCES:
+                vals = []
+                for (_, so), st in statuses.items():
+                    if so == src and st.size_prices:
+                        v = json.loads(st.size_prices).get(str(b))
+                        if v is not None:
+                            vals.append(v)
+                cells[src] = min(vals) if vals else None
+            grid_cols.append({"name": getaways.BEDROOM_LABELS.get(b, f"{b} Bedroom"),
+                              "short": getaways.BEDROOM_LABELS.get(b, f"{b} BR"), "cells": cells})
+        grid_title = "Cheapest by Unit Size"
+    else:
+        grid_cols = [
+            {
+                "name": r["name"],
+                "short": r.get("short", r["name"]),
+                "cells": {
+                    src: (statuses.get((r["name"], src)).cheapest_price
+                          if statuses.get((r["name"], src)) else None)
+                    for src in getaways.SOURCES
+                },
+            }
+            for r in trip.resorts
+        ]
+        grid_title = "Cheapest by Resort"
     best_overall = min(
         (b for b in best.values() if b is not None), key=lambda b: b.cheapest_price, default=None
     )
     checked = [st.last_checked for st in statuses.values() if st.last_checked]
     resort_groups: dict[str, list[str]] = {}
-    for r in getaways.RESORTS:
+    for r in trip.resorts:
         resort_groups.setdefault(r["area"], []).append(r["name"])
+    booking = None
+    if trip.booking:
+        b = trip.booking
+        nights = (b["check_out"] - b["check_in"]).days
+        booking = {**b, "nights": nights, "per_night": b["total_usd"] / nights}
     ctx = {
+        "trip": trip,
+        "look": TRIP_LOOKS[trip.key],
+        "booking": booking,
         "resort_groups": resort_groups,
-        "resort_count": len(getaways.RESORTS),
+        "resort_count": len(trip.resorts),
         "matches": matches,
         "near": near,
-        "miss_reason": getaways.miss_reason,
+        "miss_reason": lambda s: getaways.miss_reason(s, trip),
         "sources": sources,
-        "resort_cols": resort_cols,
+        "grid_cols": grid_cols,
+        "grid_title": grid_title,
         "source_labels": getaways.SOURCE_LABELS,
         "best_overall": best_overall,
         "season_start": start,
         "season_end": end,
         "countdown_iso": countdown_iso,
         "countdown_title": countdown_title,
-        "max_price": getaways.MAX_PRICE_NIGHT,
+        "max_price": trip.max_price,
+        "rules": trip.rules,
         "last_checked": max(checked) if checked else None,
         "running": getaways.is_running(),
         "check_hours": GETAWAY_CHECK_HOURS,
@@ -443,17 +535,28 @@ def getaways_page(request: Request, db: DbDep):
     return templates.TemplateResponse(request, "getaways.html", ctx)
 
 
+@app.get("/getaways", response_class=HTMLResponse)
+def getaways_page(request: Request, db: DbDep):
+    return _getaway_dashboard(request, db, getaways.TRIPS["winter"])
+
+
+@app.get("/banff", response_class=HTMLResponse)
+def banff_page(request: Request, db: DbDep):
+    return _getaway_dashboard(request, db, getaways.TRIPS["banff"])
+
+
 @app.get("/api/getaways/status")
 def getaways_status():
     return {"running": getaways.is_running()}
 
 
-@app.post("/getaways/check")
-def getaways_check_now():
-    started = getaways.start_background_check()
-    return RedirectResponse(
-        f"/getaways?{'checking' if started else 'busy'}=1", status_code=303
-    )
+@app.post("/trips/{trip_key}/check")
+def trip_check_now(trip_key: str):
+    trip = getaways.TRIPS.get(trip_key)
+    if trip is None:
+        raise HTTPException(404, "Unknown trip")
+    started = getaways.start_background_check([trip.key])
+    return RedirectResponse(f"{trip.path}?{'checking' if started else 'busy'}=1", status_code=303)
 
 
 @app.get("/tahiti", response_class=HTMLResponse)

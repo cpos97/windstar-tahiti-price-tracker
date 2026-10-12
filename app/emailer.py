@@ -643,39 +643,64 @@ def settings_help_url() -> str:
     return "https://resend.com/api-keys"
 
 
-def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
-    """Email Cameron about new Koala/RedWeek stays that meet every getaway rule.
+# Each getaway trip has its own look so the alerts are never confused with
+# each other or with the Tahiti price-drop email (navy and teal).
+GETAWAY_EMAIL_THEMES = {
+    "winter": {
+        "emoji": "☀️🌴", "icon": "☀️",
+        "header": "background-color:#F25F5C;background:linear-gradient(135deg,#F25F5C 0%,#FF8A5B 45%,#FFB25B 100%);",
+        "page": "#FFF4EC", "panel": "#FFF9F3", "band": "#FFE3C7", "band_ink": "#8C4A2F",
+        "accent": "#F25F5C", "kicker": "#E07A2F", "badge_bg": "#FFF1E0", "badge_border": "#FFB25B",
+        "ink": "#3D2C2E", "muted": "#8C6E63", "button": "#3D2C2E",
+        "font": "'Trebuchet MS','Segoe UI',Helvetica,Arial,sans-serif",
+    },
+    "banff": {
+        "emoji": "🏔️🌲", "icon": "🏔️",
+        "header": "background-color:#1F4D3A;background:linear-gradient(160deg,#16362A 0%,#1F4D3A 45%,#3E8A9E 100%);",
+        "page": "#EEF4F1", "panel": "#F7FAF8", "band": "#D6E9E3", "band_ink": "#1F4D3A",
+        "accent": "#2E7D5B", "kicker": "#3E8A9E", "badge_bg": "#E8F4F7", "badge_border": "#7FC1D3",
+        "ink": "#17302A", "muted": "#5E7A72", "button": "#1F4D3A",
+        "font": "Verdana,'Segoe UI',Helvetica,Arial,sans-serif",
+    },
+}
+
+
+def send_getaway_matches_email(matches: list, trip=None) -> tuple[bool, str]:
+    """Email Cameron about new Koala/RedWeek stays that meet every rule of a trip.
 
     Goes to the owner only (INTRO_CC_EMAIL / ALERT_EMAIL) — the Tahiti
-    recipients list is the family cruise group, not these side trips. The
-    design is deliberately unlike the Tahiti alert (sunset coral, not navy
-    and teal) so the two are never confused in an inbox.
+    recipients list is the family cruise group, not these side trips.
     """
+    from app.getaways import TRIPS
+
+    trip = trip or TRIPS["winter"]
+    t = GETAWAY_EMAIL_THEMES.get(trip.key, GETAWAY_EMAIL_THEMES["winter"])
     to = (config.INTRO_CC_EMAIL or config.ALERT_EMAIL or "").strip()
     if not to:
         return False, "No owner email configured (INTRO_CC_EMAIL / ALERT_EMAIL)"
 
     site = {"redweek": "RedWeek", "koala": "Koala"}
-    page = config.DASHBOARD_URL.rstrip("/") + "/getaways"
+    page = config.DASHBOARD_URL.rstrip("/") + trip.path
     first = matches[0]
     subject = (
-        f"☀️ Winter Getaway deal: {first.resort} · ${first.price_night:,.0f}/night"
+        f"{t['icon']} {trip.name} deal: {first.resort} · ${first.price_night:,.0f}/night"
         if len(matches) == 1
-        else f"☀️ Winter Getaway: {len(matches)} new deals under $200/night"
+        else f"{t['icon']} {trip.name}: {len(matches)} new deals under ${trip.max_price:,.0f}/night"
     )
     headline = (
-        "A winter escape just matched your rules"
+        "A stay just matched your rules"
         if len(matches) == 1
-        else f"{len(matches)} winter escapes just matched your rules"
+        else f"{len(matches)} stays just matched your rules"
     )
+    rules_line = " · ".join(trip.rules)
 
     def when(m) -> str:
         return f"{m.check_in:%a %b %-d} → {m.check_out:%a %b %-d, %Y}"
 
     text_lines = [
-        "WINTER GETAWAY",
+        trip.name.upper(),
         headline,
-        "Thu/Fri/Sat check-in · 3–4 nights · Jan–Mar · under $200/night (before fees)",
+        f"{rules_line} (before fees)",
         "",
     ]
     cards = []
@@ -691,20 +716,20 @@ def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
         total = f"${m.total_price:,.0f} total · " if m.total_price else ""
         cards.append(
             f"""<tr><td style="padding:0 0 14px 0;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#FFFFFF;border-radius:16px;border-left:6px solid #F25F5C;box-shadow:0 6px 18px rgba(242,95,92,0.12);">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#FFFFFF;border-radius:16px;border-left:6px solid {t['accent']};box-shadow:0 6px 18px rgba(0,0,0,0.08);">
     <tr>
       <td style="padding:18px 18px 16px 20px;">
-        <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#E07A2F;font-weight:800;">{escape(m.area)} · {escape(site.get(m.source, m.source))}</p>
-        <p style="margin:0 0 6px 0;font-size:19px;line-height:1.3;color:#3D2C2E;font-weight:800;">{escape(m.resort)}</p>
-        <p style="margin:0 0 2px 0;font-size:15px;color:#3D2C2E;">🗓️ {escape(when(m))} · <strong>{m.nights} nights</strong></p>
-        {f'<p style="margin:0;font-size:13px;color:#8C6E63;">🛏️ {escape(m.unit)}</p>' if m.unit else ''}
+        <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:{t['kicker']};font-weight:800;">{escape(m.area)} · {escape(site.get(m.source, m.source))}</p>
+        <p style="margin:0 0 6px 0;font-size:19px;line-height:1.3;color:{t['ink']};font-weight:800;">{escape(m.resort)}</p>
+        <p style="margin:0 0 2px 0;font-size:15px;color:{t['ink']};">🗓️ {escape(when(m))} · <strong>{m.nights} nights</strong></p>
+        {f'<p style="margin:0;font-size:13px;color:{t["muted"]};">🛏️ {escape(m.unit)}</p>' if m.unit else ''}
       </td>
       <td width="132" align="center" valign="middle" style="padding:16px 18px 16px 0;">
-        <p style="margin:0;display:inline-block;background:#FFF1E0;border:2px solid #FFB25B;border-radius:14px;padding:10px 12px;text-align:center;">
-          <span style="display:block;font-size:24px;font-weight:900;color:#F25F5C;line-height:1.1;">${m.price_night:,.0f}</span>
-          <span style="display:block;font-size:11px;font-weight:700;color:#8C6E63;letter-spacing:0.08em;text-transform:uppercase;">per night</span>
+        <p style="margin:0;display:inline-block;background:{t['badge_bg']};border:2px solid {t['badge_border']};border-radius:14px;padding:10px 12px;text-align:center;">
+          <span style="display:block;font-size:24px;font-weight:900;color:{t['accent']};line-height:1.1;">${m.price_night:,.0f}</span>
+          <span style="display:block;font-size:11px;font-weight:700;color:{t['muted']};letter-spacing:0.08em;text-transform:uppercase;">per night</span>
         </p>
-        <p style="margin:10px 0 0 0;font-size:12px;color:#8C6E63;">{escape(total)}<a href="{escape(m.url)}" style="color:#F25F5C;font-weight:800;text-decoration:none;">Book it →</a></p>
+        <p style="margin:10px 0 0 0;font-size:12px;color:{t['muted']};">{escape(total)}<a href="{escape(m.url)}" style="color:{t['accent']};font-weight:800;text-decoration:none;">Book it →</a></p>
       </td>
     </tr>
   </table>
@@ -715,25 +740,25 @@ def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
     html = f"""\
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>{escape(subject)}</title></head>
-<body style="margin:0;padding:0;background-color:#FFF4EC;">
+<body style="margin:0;padding:0;background-color:{t['page']};">
   <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">{escape(headline)} — {escape(first.resort)} from ${first.price_night:,.0f}/night.</div>
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF4EC;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:{t['page']};">
     <tr><td align="center" style="padding:28px 14px 40px 14px;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;font-family:'Trebuchet MS','Segoe UI',Helvetica,Arial,sans-serif;">
-        <tr><td align="center" style="background-color:#F25F5C;background:linear-gradient(135deg,#F25F5C 0%,#FF8A5B 45%,#FFB25B 100%);border-radius:22px 22px 0 0;padding:34px 26px 30px 26px;">
-          <p style="margin:0 0 6px 0;font-size:40px;line-height:1;">☀️🌴</p>
-          <p style="margin:0 0 8px 0;font-size:13px;font-weight:900;letter-spacing:0.32em;text-transform:uppercase;color:#FFFFFF;">Winter Getaway</p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;font-family:{t['font']};">
+        <tr><td align="center" style="{t['header']}border-radius:22px 22px 0 0;padding:34px 26px 30px 26px;">
+          <p style="margin:0 0 6px 0;font-size:40px;line-height:1;">{t['emoji']}</p>
+          <p style="margin:0 0 8px 0;font-size:13px;font-weight:900;letter-spacing:0.32em;text-transform:uppercase;color:#FFFFFF;">{escape(trip.name)}</p>
           <h1 style="margin:0;font-size:26px;line-height:1.25;color:#FFFFFF;font-weight:900;">{escape(headline)}</h1>
         </td></tr>
-        <tr><td style="background:#FFE3C7;padding:12px 22px;text-align:center;font-size:13px;font-weight:700;color:#8C4A2F;">
-          Thu/Fri/Sat check-in &nbsp;·&nbsp; 3–4 nights &nbsp;·&nbsp; Jan–Mar &nbsp;·&nbsp; under $200/night
+        <tr><td style="background:{t['band']};padding:12px 22px;text-align:center;font-size:13px;font-weight:700;color:{t['band_ink']};">
+          {escape(rules_line)}
         </td></tr>
-        <tr><td style="background:#FFF9F3;padding:22px 18px 8px 18px;">
+        <tr><td style="background:{t['panel']};padding:22px 18px 8px 18px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">{''.join(cards)}</table>
         </td></tr>
-        <tr><td align="center" style="background:#FFF9F3;border-radius:0 0 22px 22px;padding:10px 26px 30px 26px;">
-          <a href="{escape(page)}" style="display:inline-block;padding:14px 32px;background:#3D2C2E;color:#FFFFFF;font-weight:800;text-decoration:none;border-radius:999px;">See every deal we're watching</a>
-          <p style="margin:16px 0 0 0;color:#8C6E63;font-size:12px;">Prices are the listed nightly rate, before fees. Timeshare rentals go fast — book on the site.</p>
+        <tr><td align="center" style="background:{t['panel']};border-radius:0 0 22px 22px;padding:10px 26px 30px 26px;">
+          <a href="{escape(page)}" style="display:inline-block;padding:14px 32px;background:{t['button']};color:#FFFFFF;font-weight:800;text-decoration:none;border-radius:999px;">See every deal we're watching</a>
+          <p style="margin:16px 0 0 0;color:{t['muted']};font-size:12px;">Prices are the listed nightly rate, before fees. Timeshare rentals go fast — book on the site.</p>
         </td></tr>
       </table>
     </td></tr>

@@ -13,7 +13,7 @@
   <header class="topbar">
     <a class="brand" href="/">
       <span class="brand-icon">{% block brand_icon %}🌴{% endblock %}</span>
-      <span>
+      <span class="brand-text">
         {% block brand_name %}Trip Tracker{% endblock %}
         <span class="brand-sub">{% block brand_sub %}Travel Deals · Price Tracker{% endblock %}</span>
       </span>
@@ -22,7 +22,8 @@
       {% set path = request.url.path %}
       <a href="/" class="{% if path == '/' %}active{% endif %}">Trips</a>
       <a href="/tahiti" class="{% if path == '/tahiti' or path.startswith('/cruises') %}active{% endif %}">Tahiti</a>
-      <a href="/getaways" class="{% if path.startswith('/getaways') %}active{% endif %}">Getaways</a>
+      <a href="/getaways" class="{% if path.startswith('/getaways') %}active{% endif %}">Winter</a>
+      <a href="/banff" class="{% if path.startswith('/banff') %}active{% endif %}">Banff</a>
       <a href="/settings" class="{% if path == '/settings' %}active{% endif %}">Settings</a>
     </nav>
   </header>

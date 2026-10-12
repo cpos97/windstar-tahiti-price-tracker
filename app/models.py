@@ -102,10 +102,13 @@ class GetawayListing(Base):
     # e.g. "redweek:R1506441" or "koala:418647:2027-02-20:2027-02-24" — Koala
     # open-availability listings can be booked for several date windows.
     key: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    # Which Trip (app.getaways.TRIPS) this row belongs to, e.g. "winter", "banff"
+    trip: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     resort: Mapped[str] = mapped_column(String(120), nullable=False)
     area: Mapped[str] = mapped_column(String(40), nullable=False)
     unit: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    bedrooms: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0 = studio
     check_in: Mapped[datetime] = mapped_column(Date, nullable=False)
     check_out: Mapped[datetime] = mapped_column(Date, nullable=False)
     nights: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -127,9 +130,12 @@ class GetawayResortStatus(Base):
     __tablename__ = "getaway_resort_status"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     resort: Mapped[str] = mapped_column(String(120), nullable=False)
     cheapest_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Cheapest in-season nightly rate per bedroom count, JSON {"0": 210, "1": 245}
+    size_prices: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # When this resort was last read successfully — the prices shown date from then
@@ -143,6 +149,7 @@ class GetawayPriceHistory(Base):
     __tablename__ = "getaway_price_history"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     resort: Mapped[str | None] = mapped_column(String(120), nullable=True)

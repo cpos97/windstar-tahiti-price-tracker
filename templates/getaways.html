@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Winter Getaway · Trip Tracker{% endblock %}
-{% block body_class %}theme-caribbean{% endblock %}
-{% block brand_icon %}🏝️{% endblock %}
-{% block brand_name %}Winter Getaway{% endblock %}
+{% block title %}{{ trip.name }} · Trip Tracker{% endblock %}
+{% block body_class %}{{ look.body_class }}{% endblock %}
+{% block brand_icon %}{{ look.icon }}{% endblock %}
+{% block brand_name %}{{ trip.name }}{% endblock %}
 {% block brand_sub %}Vacation Rentals · Price Tracker{% endblock %}
-{% block footer_text %}Koala · RedWeek · {{ resort_count }} resorts · checks every {{ check_hours }} hours · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Photo: Trunk Bay, St. John by Navin75</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
+{% block footer_text %}Koala · RedWeek · {{ resort_count }} resort{% if resort_count != 1 %}s{% endif %} · checks every {{ check_hours }} hours{% if look.photo %} · <a class="photo-credit" href="{{ look.photo.url }}" target="_blank" rel="noopener">Photo: {{ look.photo.title }} by {{ look.photo.author }}</a> (<a class="photo-credit" href="{{ look.photo.license_url }}" target="_blank" rel="noopener">{{ look.photo.license }}</a>){% endif %}{% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -32,10 +32,10 @@
 {% block content %}
 <section class="hero">
   <div class="hero-title-block">
-    <h1 class="hero-title">Winter Getaway</h1>
-    <p class="hero-subtitle">Island Hopping • {{ resort_count }} Resorts · {{ resort_groups | length }} Destinations</p>
+    <h1 class="hero-title">{{ trip.name }}</h1>
+    <p class="hero-subtitle">{{ look.subtitle }} • {% if resort_count > 1 %}{{ resort_count }} Resorts · {{ resort_groups | length }} Destinations{% else %}{{ trip.resorts[0].name }}{% endif %}</p>
   </div>
-  <form action="/getaways/check" method="post" id="check-getaways-form">
+  <form action="/trips/{{ trip.key }}/check" method="post" id="check-getaways-form">
     <button type="submit" class="btn secondary" id="check-getaways-btn" {% if running %}disabled{% endif %}>
       {% if running %}Checking…{% else %}Check all now{% endif %}
     </button>
@@ -43,14 +43,14 @@
 </section>
 
 {% if request.query_params.get('checking') or running %}
-<div class="banner ok" id="check-flash">Checking Koala and RedWeek for every resort… this page refreshes when it's done.</div>
+<div class="banner ok" id="check-flash">Checking Koala and RedWeek… this page refreshes when it's done.</div>
 {% elif request.query_params.get('busy') %}
 <div class="banner warn">A check is already running — give it a minute.</div>
 {% endif %}
 
 <section class="trip-banner">
   <div class="card countdown-card">
-    <p class="eyebrow">Countdown to the season</p>
+    <p class="eyebrow">{% if booking %}Countdown to check-in{% else %}Countdown to the season{% endif %}</p>
     <h2>{{ countdown_title }}</h2>
     <div class="countdown-grid" id="countdown" data-departure="{{ countdown_iso }}">
       <div class="countdown-unit"><span class="num" data-unit="days">—</span><span class="unit-label">Days</span></div>
@@ -59,20 +59,27 @@
       <div class="countdown-unit"><span class="num" data-unit="secs">—</span><span class="unit-label">Secs</span></div>
     </div>
     <p class="countdown-meta">
-      Season: <strong>{{ season_start.strftime('%b %-d') }} – {{ season_end.strftime('%b %-d, %Y') }}</strong>
-      · Thu/Fri/Sat check-in · 3–4 nights · under {{ max_price | money('USD') }}/night
+      Watching: <strong>{{ season_start.strftime('%b %-d') }} – {{ season_end.strftime('%b %-d, %Y') }}</strong>
+      · {{ rules | join(' · ') }}
     </p>
   </div>
 
   <div class="card highlights-card">
-    <p class="eyebrow">Resorts we're watching</p>
-    <h2>Winter sun awaits</h2>
+    <p class="eyebrow">{{ look.highlight_eyebrow }}</p>
+    <h2>{{ look.highlight_title }}</h2>
     <ul class="highlights-list">
+      {% if booking %}
+      <li><span class="dot"></span><span><strong>{{ trip.resorts[0].name }}</strong> — {{ booking.unit }}</span></li>
+      <li><span class="dot"></span><span><strong>{{ booking.check_in.strftime('%a %b %-d') }} – {{ booking.check_out.strftime('%a %b %-d, %Y') }}</strong> · {{ booking.nights }} nights</span></li>
+      <li><span class="dot"></span><span><strong>{{ booking.total_usd | money('USD') }}</strong> {{ booking.note }} · about {{ booking.per_night | money('USD') }}/night</span></li>
+      <li><span class="dot"></span><span>Alert on any studio, 1 or 2 bedroom under {{ max_price | money('USD') }}/night</span></li>
+      {% else %}
       {% for area, names in resort_groups.items() %}
       <li><span class="dot"></span><span><strong>{{ area }}</strong> — {{ names | join(', ') }}</span></li>
       {% endfor %}
+      {% endif %}
     </ul>
-    <p class="highlights-tagline">“Sun, sand, and a deal worth catching!”</p>
+    <p class="highlights-tagline">{{ look.tagline }}</p>
   </div>
 </section>
 
@@ -175,11 +182,11 @@
   {% endfor %}
 </div>
 
-{# Cheapest by resort: the same aligned matrix as Tahiti's cabin strip —
-   resorts across the top, one row per site. #}
+{# Same aligned matrix as Tahiti's cabin strip: resorts (or unit sizes, for a
+   trip that cares about bedrooms) across the top, one row per site. #}
 <article class="card cruise-card-cabin cabin-strip">
   <div class="cabin-strip-head">
-    <h3>Cheapest by Resort</h3>
+    <h3>{{ grid_title }}</h3>
     <span class="pill ok">{{ season_start.strftime('%b') }}–{{ season_end.strftime('%b %Y') }} &middot; per night</span>
     <div class="cabin-legend">
       <span class="cabin-legend-item"><i class="cabin-legend-dot primary"></i>RedWeek</span>
@@ -191,19 +198,19 @@
   </div>
 
   <div class="cabin-matrix-wrap">
-    <div class="cabin-matrix resort-matrix" style="--cabin-cols: {{ resort_cols | length }}">
+    <div class="cabin-matrix resort-matrix" style="--cabin-cols: {{ grid_cols | length }}">
       <span class="cm-corner"></span>
-      {% for col in resort_cols %}
+      {% for col in grid_cols %}
       <span class="cm-head" title="{{ col.name }}">{{ col.short }}</span>
       {% endfor %}
 
       {% for src in ['redweek', 'koala'] %}
       <span class="cm-label{% if src == 'koala' %} compare{% endif %}">{{ source_labels[src] }}</span>
-      {% for col in resort_cols %}
-      {% set st = col.cells[src] %}
-      <span class="cm-val{% if src == 'koala' %} compare{% endif %}{% if st is none or st.cheapest_price is none %} missing{% elif st.cheapest_price < max_price %} deal{% endif %}"
-            title="{{ col.name }} on {{ source_labels[src] }}{% if st and st.last_error %} — couldn't be read{% endif %}">
-        {%- if st is none or st.cheapest_price is none -%}&mdash;{%- else -%}${{ '%.0f' | format(st.cheapest_price) }}{%- endif -%}
+      {% for col in grid_cols %}
+      {% set v = col.cells[src] %}
+      <span class="cm-val{% if src == 'koala' %} compare{% endif %}{% if v is none %} missing{% elif v < max_price %} deal{% endif %}"
+            title="{{ col.name }} on {{ source_labels[src] }}">
+        {%- if v is none -%}&mdash;{%- else -%}${{ '%.0f' | format(v) }}{%- endif -%}
       </span>
       {% endfor %}
       {% endfor %}
@@ -215,7 +222,7 @@
     Cheapest overall:
     <span class="cabin-delta {% if best_overall.cheapest_price < max_price %}down{% else %}up{% endif %}">${{ '%.0f' | format(best_overall.cheapest_price) }}</span>
     /night at {{ best_overall.resort }} on {{ source_labels[best_overall.source] }}
-    &middot; any length or check-in day &middot; green = under {{ max_price | money('USD') }}.
+    &middot; green = under {{ max_price | money('USD') }}.
     {% else %}
     No prices yet — the first check runs shortly.
     {% endif %}
@@ -224,7 +231,7 @@
 
 <section class="section-head" id="matches" style="margin-top:2rem">
   <h2>Matches</h2>
-  <span class="muted">Thu/Fri/Sat check-in · 3–4 nights · under {{ max_price | money('USD') }}/night</span>
+  <span class="muted">{{ rules | join(' · ') }}</span>
 </section>
 <div class="card table-wrap">
   {% if matches %}
@@ -239,7 +246,7 @@
 
 <section class="section-head">
   <h2>Close calls</h2>
-  <span class="muted">In season and under {{ max_price | money('USD') }}/night, but the length or check-in day is off</span>
+  <span class="muted">{{ look.near_text }}</span>
 </section>
 <div class="card table-wrap">
   {% if near %}
@@ -248,7 +255,7 @@
     <tbody>{% for s in near %}{{ stay_row(s, True) }}{% endfor %}</tbody>
   </table>
   {% else %}
-  <p class="muted" style="margin:0">None right now. Owners will sometimes split a week if you ask, so these are worth a look when they appear.</p>
+  <p class="muted" style="margin:0">{{ look.near_empty }}</p>
   {% endif %}
 </div>
 {% endblock %}
@@ -274,7 +281,7 @@
         const s = await r.json();
         if (!s.running) {
           clearInterval(iv);
-          window.location.replace('/getaways');
+          window.location.replace('{{ trip.path }}');
         }
       } catch (e) { /* keep polling */ }
     }, 3000);
