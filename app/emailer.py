@@ -647,7 +647,9 @@ def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
     """Email Cameron about new Koala/RedWeek stays that meet every getaway rule.
 
     Goes to the owner only (INTRO_CC_EMAIL / ALERT_EMAIL) — the Tahiti
-    recipients list is the family cruise group, not these side trips.
+    recipients list is the family cruise group, not these side trips. The
+    design is deliberately unlike the Tahiti alert (sunset coral, not navy
+    and teal) so the two are never confused in an inbox.
     """
     to = (config.INTRO_CC_EMAIL or config.ALERT_EMAIL or "").strip()
     if not to:
@@ -657,61 +659,81 @@ def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
     page = config.DASHBOARD_URL.rstrip("/") + "/getaways"
     first = matches[0]
     subject = (
-        f"Getaway match: {first.resort} · ${first.price_night:,.0f}/night"
+        f"☀️ Winter Getaway deal: {first.resort} · ${first.price_night:,.0f}/night"
         if len(matches) == 1
-        else f"{len(matches)} new getaway matches under $200/night"
+        else f"☀️ Winter Getaway: {len(matches)} new deals under $200/night"
+    )
+    headline = (
+        "A winter escape just matched your rules"
+        if len(matches) == 1
+        else f"{len(matches)} winter escapes just matched your rules"
     )
 
     def when(m) -> str:
         return f"{m.check_in:%a %b %-d} → {m.check_out:%a %b %-d, %Y}"
 
     text_lines = [
-        "New stays matching your getaway rules (Thu/Fri/Sat check-in, 3–4 nights, Jan–Mar, under $200/night):",
+        "WINTER GETAWAY",
+        headline,
+        "Thu/Fri/Sat check-in · 3–4 nights · Jan–Mar · under $200/night (before fees)",
         "",
     ]
-    rows_html = []
+    cards = []
     for m in matches:
         text_lines += [
-            f"{m.resort} ({m.area}) — {site.get(m.source, m.source)}",
+            f"{m.resort} — {m.area} ({site.get(m.source, m.source)})",
             f"  {when(m)} · {m.nights} nights · ${m.price_night:,.0f}/night"
             + (f" · ${m.total_price:,.0f} total" if m.total_price else ""),
             f"  {m.unit or ''}".rstrip(),
-            f"  {m.url}",
+            f"  Book: {m.url}",
             "",
         ]
-        rows_html.append(
-            f"""<tr>
-  <td style="padding:12px 10px;border-bottom:1px solid #E8DFD2;">
-    <strong style="color:#0A3D5C;">{escape(m.resort)}</strong><br>
-    <span style="color:#8A7560;font-size:13px;">{escape(m.area)} · {escape(site.get(m.source, m.source))}{(' · ' + escape(m.unit)) if m.unit else ''}</span>
-  </td>
-  <td style="padding:12px 10px;border-bottom:1px solid #E8DFD2;color:#0A3D5C;">{escape(when(m))}<br><span style="color:#8A7560;font-size:13px;">{m.nights} nights</span></td>
-  <td style="padding:12px 10px;border-bottom:1px solid #E8DFD2;text-align:right;">
-    <strong style="color:#0D6B63;font-size:17px;">${m.price_night:,.0f}</strong><span style="color:#8A7560;font-size:12px;">/night</span><br>
-    <a href="{escape(m.url)}" style="color:#1565A0;font-size:13px;">View listing</a>
-  </td>
-</tr>"""
+        total = f"${m.total_price:,.0f} total · " if m.total_price else ""
+        cards.append(
+            f"""<tr><td style="padding:0 0 14px 0;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#FFFFFF;border-radius:16px;border-left:6px solid #F25F5C;box-shadow:0 6px 18px rgba(242,95,92,0.12);">
+    <tr>
+      <td style="padding:18px 18px 16px 20px;">
+        <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#E07A2F;font-weight:800;">{escape(m.area)} · {escape(site.get(m.source, m.source))}</p>
+        <p style="margin:0 0 6px 0;font-size:19px;line-height:1.3;color:#3D2C2E;font-weight:800;">{escape(m.resort)}</p>
+        <p style="margin:0 0 2px 0;font-size:15px;color:#3D2C2E;">🗓️ {escape(when(m))} · <strong>{m.nights} nights</strong></p>
+        {f'<p style="margin:0;font-size:13px;color:#8C6E63;">🛏️ {escape(m.unit)}</p>' if m.unit else ''}
+      </td>
+      <td width="132" align="center" valign="middle" style="padding:16px 18px 16px 0;">
+        <p style="margin:0;display:inline-block;background:#FFF1E0;border:2px solid #FFB25B;border-radius:14px;padding:10px 12px;text-align:center;">
+          <span style="display:block;font-size:24px;font-weight:900;color:#F25F5C;line-height:1.1;">${m.price_night:,.0f}</span>
+          <span style="display:block;font-size:11px;font-weight:700;color:#8C6E63;letter-spacing:0.08em;text-transform:uppercase;">per night</span>
+        </p>
+        <p style="margin:10px 0 0 0;font-size:12px;color:#8C6E63;">{escape(total)}<a href="{escape(m.url)}" style="color:#F25F5C;font-weight:800;text-decoration:none;">Book it →</a></p>
+      </td>
+    </tr>
+  </table>
+</td></tr>"""
         )
-    text_lines += [f"All current matches: {page}"]
+    text_lines += [f"Everything we're watching: {page}"]
 
     html = f"""\
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
-<body style="margin:0;padding:0;background-color:#F5EFE6;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F5EFE6;">
-    <tr><td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:18px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-        <tr><td style="background:#0A3D5C;padding:26px 28px;">
-          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#7FDBDA;">Winter Getaway</p>
-          <h1 style="margin:0;font-family:Georgia,serif;font-size:22px;color:#FFFFFF;font-weight:normal;">{escape(subject)}</h1>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>{escape(subject)}</title></head>
+<body style="margin:0;padding:0;background-color:#FFF4EC;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">{escape(headline)} — {escape(first.resort)} from ${first.price_night:,.0f}/night.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF4EC;">
+    <tr><td align="center" style="padding:28px 14px 40px 14px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;font-family:'Trebuchet MS','Segoe UI',Helvetica,Arial,sans-serif;">
+        <tr><td align="center" style="background-color:#F25F5C;background:linear-gradient(135deg,#F25F5C 0%,#FF8A5B 45%,#FFB25B 100%);border-radius:22px 22px 0 0;padding:34px 26px 30px 26px;">
+          <p style="margin:0 0 6px 0;font-size:40px;line-height:1;">☀️🌴</p>
+          <p style="margin:0 0 8px 0;font-size:13px;font-weight:900;letter-spacing:0.32em;text-transform:uppercase;color:#FFFFFF;">Winter Getaway</p>
+          <h1 style="margin:0;font-size:26px;line-height:1.25;color:#FFFFFF;font-weight:900;">{escape(headline)}</h1>
         </td></tr>
-        <tr><td style="padding:20px 18px 8px 18px;">
-          <p style="margin:0 10px 12px 10px;color:#5A6D7E;font-size:14px;">Thu/Fri/Sat check-in · 3–4 nights · Jan–Mar · under $200/night (before fees)</p>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">{''.join(rows_html)}</table>
+        <tr><td style="background:#FFE3C7;padding:12px 22px;text-align:center;font-size:13px;font-weight:700;color:#8C4A2F;">
+          Thu/Fri/Sat check-in &nbsp;·&nbsp; 3–4 nights &nbsp;·&nbsp; Jan–Mar &nbsp;·&nbsp; under $200/night
         </td></tr>
-        <tr><td align="center" style="padding:18px 28px 30px 28px;">
-          <a href="{escape(page)}" style="display:inline-block;padding:14px 30px;background:#2EC4B6;color:#FFFFFF;font-weight:700;text-decoration:none;border-radius:12px;">See all matches</a>
-          <p style="margin:14px 0 0 0;color:#8A7560;font-size:12px;">Timeshare rentals go fast — book directly on the site.</p>
+        <tr><td style="background:#FFF9F3;padding:22px 18px 8px 18px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">{''.join(cards)}</table>
+        </td></tr>
+        <tr><td align="center" style="background:#FFF9F3;border-radius:0 0 22px 22px;padding:10px 26px 30px 26px;">
+          <a href="{escape(page)}" style="display:inline-block;padding:14px 32px;background:#3D2C2E;color:#FFFFFF;font-weight:800;text-decoration:none;border-radius:999px;">See every deal we're watching</a>
+          <p style="margin:16px 0 0 0;color:#8C6E63;font-size:12px;">Prices are the listed nightly rate, before fees. Timeshare rentals go fast — book on the site.</p>
         </td></tr>
       </table>
     </td></tr>
