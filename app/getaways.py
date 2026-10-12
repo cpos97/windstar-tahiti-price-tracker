@@ -36,61 +36,110 @@ CHECKIN_WEEKDAYS = (3, 4, 5)  # Thu, Fri, Sat
 NIGHTS = (3, 4)
 SEASON_MONTHS = (1, 3)  # January through March
 
+# Grouped by destination. "koala" and "redweek" are lists because some
+# resorts are split into separately-listed sections on those sites.
 RESORTS = [
     {
         "name": "Marriott's Aruba Surf Club",
         "short": "Surf Club",
         "area": "Aruba",
-        "koala": ("marriott-s-aruba-surf-club", 78),
+        "koala": [("marriott-s-aruba-surf-club", 78)],
         "redweek": ["P4872-marriotts-aruba-surf-club"],
     },
     {
         "name": "Marriott's Aruba Ocean Club",
         "short": "Ocean Club",
         "area": "Aruba",
-        "koala": ("marriotts-aruba-ocean-club", 54),
+        "koala": [("marriotts-aruba-ocean-club", 54)],
         "redweek": ["P148-marriotts-aruba-ocean-club"],
+    },
+    {
+        "name": "Harborside Resort at Atlantis",
+        "short": "Harborside",
+        "area": "Bahamas",
+        "koala": [("harborside-resort-at-atlantis", 68)],
+        "redweek": ["P4748-harborside-resort-at-atlantis"],
+    },
+    {
+        "name": "Pueblo Bonito Sunset Beach",
+        "short": "Pueblo Bonito",
+        "area": "Cabo",
+        "koala": [("pueblo-bonito-sunset-beach", 47)],
+        "redweek": ["P278-pueblo-bonito-sunset-beach-resort-spa"],
+    },
+    {
+        "name": "Hilton Vacation Club Cabo Azul",
+        "short": "Cabo Azul",
+        "area": "Cabo",
+        "koala": [("cabo-azul-resort-by-diamond-resorts", 1134)],
+        "redweek": ["P5748-hilton-vacation-club-cabo-azul-los-cabos"],
+    },
+    {
+        "name": "Westin Los Cabos Resort Villas",
+        "short": "Westin Cabo",
+        "area": "Cabo",
+        "koala": [
+            ("westin-los-cabos-resort-villas-and-spa", 1132),
+            ("westin-los-cabos-resort-villas-baja-point", 2996),
+        ],
+        "redweek": [
+            "P6496-the-westin-los-cabos-resort-villas-spa",
+            "P5594-the-westin-los-cabos-resort-villas-baja",
+        ],
     },
     {
         "name": "Hyatt Sunset Harbor",
         "short": "Sunset Harbor",
         "area": "Key West",
-        "koala": ("hyatt-key-west-sunset-harbor", 491),
+        "koala": [("hyatt-key-west-sunset-harbor", 491)],
         "redweek": ["P1178-hyatt-sunset-harbor-resort"],
     },
     {
         "name": "Hyatt Beach House",
         "short": "Beach House",
         "area": "Key West",
-        "koala": ("hyatt-key-west-beach-house", 488),
+        "koala": [("hyatt-key-west-beach-house", 488)],
         "redweek": ["P1177-hyatt-beach-house-resort"],
     },
     {
         "name": "Hyatt Windward Pointe",
         "short": "Windward Pointe",
         "area": "Key West",
-        "koala": ("hyatt-residence-club-key-west-windward-pointe", 197),
+        "koala": [("hyatt-residence-club-key-west-windward-pointe", 197)],
         "redweek": ["P5196-hyatt-windward-pointe-resort"],
     },
     {
         "name": "The Galleon Resort",
         "short": "Galleon",
         "area": "Key West",
-        "koala": ("the-galleon-resort", 659),
+        "koala": [("the-galleon-resort", 659)],
         "redweek": ["P1183-the-galleon-resort"],
     },
     {
+        "name": "Hilton Vacation Club Flamingo Beach",
+        "short": "Flamingo Beach",
+        "area": "St. Maarten",
+        "koala": [("flamingo-beach-resort", 2395)],
+        "redweek": ["P179-hilton-vacation-club-flamingo-beach-st"],
+    },
+    {
         "name": "Westin St. John Resort Villas",
-        "short": "Westin",
+        "short": "Westin St. John",
         "area": "St. John",
-        "koala": ("westin-st-john-resort-villas", 39),
-        # RedWeek splits the Westin into its four timeshare sections
+        "koala": [("westin-st-john-resort-villas", 39)],
         "redweek": [
             "P4649-the-westin-st-john-virgin-grand-villas",
             "P200-the-westin-st-john-bay-vista-villas",
             "P6450-the-westin-st-john-sunset-bay-villas",
             "P6381-the-westin-st-john-coral-vista-villas",
         ],
+    },
+    {
+        "name": "Marriott's Frenchman's Cove",
+        "short": "Frenchman's Cove",
+        "area": "St. Thomas",
+        "koala": [("marriotts-frenchmans-cove", 56)],
+        "redweek": ["P5504-marriotts-frenchmans-cove"],
     },
 ]
 
@@ -99,7 +148,10 @@ _UA = (
     "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 )
 REQUEST_PAUSE_S = 1.5
-KOALA_MAX_QUERIES_PER_RESORT = 80
+# The per-stay Koala scan is the bulk of the traffic, so it goes slower and
+# is capped — RedWeek already rate-limited this server once.
+KOALA_SCAN_PAUSE_S = 3.0
+KOALA_MAX_QUERIES_PER_RESORT = 60
 
 
 @dataclass
@@ -315,18 +367,10 @@ def _koala_stays(payload: dict, resort: dict, slug: str) -> list[Stay]:
     return stays
 
 
-def fetch_koala(
-    resort: dict, start: date, end: date
-) -> tuple[list[Stay], str | None, float | None]:
-    """Koala stays for the season. Returns (stays, note, cheapest).
-
-    Koala only lists stays for a given check-in/check-out, so this first asks
-    for the resort's cheapest nightly price across the whole season — one
-    request. If even that isn't under the limit nothing can match, so no
-    further requests are made. Otherwise it asks about each Thu/Fri/Sat
-    3–4 night stay on days the resort has availability.
-    """
-    slug, rid = resort["koala"]
+def _fetch_koala_section(
+    resort: dict, slug: str, rid: int, start: date, end: date
+) -> tuple[list[Stay], float | None]:
+    """One Koala listing page's stays for the season, and its cheapest nightly rate."""
     info = _koala_json(
         f"resort/enabled/dates/{slug}",
         _koala_params(slug, rid, startD=start.isoformat(), endD=end.isoformat()),
@@ -337,11 +381,11 @@ def fetch_koala(
         cheapest = None
     time.sleep(REQUEST_PAUSE_S)
     if cheapest is not None and cheapest >= MAX_PRICE_NIGHT:
-        return [], None, cheapest
+        return [], cheapest
 
     enabled = _koala_enabled_days(info.get("enabledRanges") or [])
     if cheapest is None and not enabled:
-        return [], None, None  # nothing listed this season
+        return [], None  # nothing listed this season
     stays: list[Stay] = []
     seen: set[str] = set()
     queries = 0
@@ -359,8 +403,29 @@ def fetch_koala(
                     if s.key not in seen:
                         seen.add(s.key)
                         stays.append(s)
-                time.sleep(REQUEST_PAUSE_S)
+                time.sleep(KOALA_SCAN_PAUSE_S)
         day += timedelta(days=1)
+    return stays, cheapest
+
+
+def fetch_koala(
+    resort: dict, start: date, end: date
+) -> tuple[list[Stay], str | None, float | None]:
+    """Koala stays for the season. Returns (stays, note, cheapest).
+
+    Koala only lists stays for a given check-in/check-out, so this first asks
+    for the resort's cheapest nightly price across the whole season — one
+    request. If even that isn't under the limit nothing can match, so no
+    further requests are made. Otherwise it asks about each Thu/Fri/Sat
+    3–4 night stay on days the resort has availability.
+    """
+    stays: list[Stay] = []
+    cheapest: float | None = None
+    for slug, rid in resort["koala"]:
+        section_stays, section_cheapest = _fetch_koala_section(resort, slug, rid, start, end)
+        stays.extend(section_stays)
+        if section_cheapest is not None:
+            cheapest = section_cheapest if cheapest is None else min(cheapest, section_cheapest)
     return stays, None, cheapest
 
 

@@ -4,7 +4,7 @@
 {% block brand_icon %}🏝️{% endblock %}
 {% block brand_name %}Caribbean Getaways{% endblock %}
 {% block brand_sub %}Vacation Rentals · Price Tracker{% endblock %}
-{% block footer_text %}Koala · RedWeek · Aruba · Key West · St. John · checks every {{ check_hours }} hours · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Photo: Trunk Bay, St. John by Navin75</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
+{% block footer_text %}Koala · RedWeek · {{ resort_count }} resorts · checks every {{ check_hours }} hours · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Photo: Trunk Bay, St. John by Navin75</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -33,7 +33,7 @@
 <section class="hero">
   <div class="hero-title-block">
     <h1 class="hero-title">Caribbean Getaways</h1>
-    <p class="hero-subtitle">Island Hopping • Aruba · Key West · St. John</p>
+    <p class="hero-subtitle">Island Hopping • {{ resort_count }} Resorts · {{ resort_groups | length }} Destinations</p>
   </div>
   <form action="/getaways/check" method="post" id="check-getaways-form">
     <button type="submit" class="btn secondary" id="check-getaways-btn" {% if running %}disabled{% endif %}>
@@ -68,12 +68,11 @@
     <p class="eyebrow">Resorts we're watching</p>
     <h2>Caribbean sun awaits</h2>
     <ul class="highlights-list">
-      <li><span class="dot"></span><span>Aruba — Marriott's Surf Club &amp; Ocean Club</span></li>
-      <li><span class="dot"></span><span>Key West — Hyatt Sunset Harbor, Beach House &amp; Windward Pointe</span></li>
-      <li><span class="dot"></span><span>Key West — The Galleon Resort &amp; Marina</span></li>
-      <li><span class="dot"></span><span>St. John — Westin St. John Resort Villas</span></li>
+      {% for area, names in resort_groups.items() %}
+      <li><span class="dot"></span><span><strong>{{ area }}</strong> — {{ names | join(', ') }}</span></li>
+      {% endfor %}
     </ul>
-    <p class="highlights-tagline">“Aruba, Key West, and St. John await!”</p>
+    <p class="highlights-tagline">“Sun, sand, and a deal worth catching!”</p>
   </div>
 </section>
 

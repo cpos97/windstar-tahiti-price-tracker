@@ -416,7 +416,12 @@ def getaways_page(request: Request, db: DbDep):
         (b for b in best.values() if b is not None), key=lambda b: b.cheapest_price, default=None
     )
     checked = [st.last_checked for st in statuses.values() if st.last_checked]
+    resort_groups: dict[str, list[str]] = {}
+    for r in getaways.RESORTS:
+        resort_groups.setdefault(r["area"], []).append(r["name"])
     ctx = {
+        "resort_groups": resort_groups,
+        "resort_count": len(getaways.RESORTS),
         "matches": matches,
         "near": near,
         "miss_reason": getaways.miss_reason,
