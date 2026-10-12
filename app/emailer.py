@@ -641,3 +641,81 @@ def send_test_email() -> tuple[bool, str]:
 
 def settings_help_url() -> str:
     return "https://resend.com/api-keys"
+
+
+def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
+    """Email Cameron about new Koala/RedWeek stays that meet every getaway rule.
+
+    Goes to the owner only (INTRO_CC_EMAIL / ALERT_EMAIL) — the Tahiti
+    recipients list is the family cruise group, not these side trips.
+    """
+    to = (config.INTRO_CC_EMAIL or config.ALERT_EMAIL or "").strip()
+    if not to:
+        return False, "No owner email configured (INTRO_CC_EMAIL / ALERT_EMAIL)"
+
+    site = {"redweek": "RedWeek", "koala": "Koala"}
+    page = config.DASHBOARD_URL.rstrip("/") + "/getaways"
+    first = matches[0]
+    subject = (
+        f"Getaway match: {first.resort} · ${first.price_night:,.0f}/night"
+        if len(matches) == 1
+        else f"{len(matches)} new getaway matches under $200/night"
+    )
+
+    def when(m) -> str:
+        return f"{m.check_in:%a %b %-d} → {m.check_out:%a %b %-d, %Y}"
+
+    text_lines = [
+        "New stays matching your getaway rules (Thu/Fri/Sat check-in, 3–4 nights, Jan–Mar, under $200/night):",
+        "",
+    ]
+    rows_html = []
+    for m in matches:
+        text_lines += [
+            f"{m.resort} ({m.area}) — {site.get(m.source, m.source)}",
+            f"  {when(m)} · {m.nights} nights · ${m.price_night:,.0f}/night"
+            + (f" · ${m.total_price:,.0f} total" if m.total_price else ""),
+            f"  {m.unit or ''}".rstrip(),
+            f"  {m.url}",
+            "",
+        ]
+        rows_html.append(
+            f"""<tr>
+  <td style="padding:12px 10px;border-bottom:1px solid #E8DFD2;">
+    <strong style="color:#0A3D5C;">{escape(m.resort)}</strong><br>
+    <span style="color:#8A7560;font-size:13px;">{escape(m.area)} · {escape(site.get(m.source, m.source))}{(' · ' + escape(m.unit)) if m.unit else ''}</span>
+  </td>
+  <td style="padding:12px 10px;border-bottom:1px solid #E8DFD2;color:#0A3D5C;">{escape(when(m))}<br><span style="color:#8A7560;font-size:13px;">{m.nights} nights</span></td>
+  <td style="padding:12px 10px;border-bottom:1px solid #E8DFD2;text-align:right;">
+    <strong style="color:#0D6B63;font-size:17px;">${m.price_night:,.0f}</strong><span style="color:#8A7560;font-size:12px;">/night</span><br>
+    <a href="{escape(m.url)}" style="color:#1565A0;font-size:13px;">View listing</a>
+  </td>
+</tr>"""
+        )
+    text_lines += [f"All current matches: {page}"]
+
+    html = f"""\
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#F5EFE6;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F5EFE6;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:18px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        <tr><td style="background:#0A3D5C;padding:26px 28px;">
+          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#7FDBDA;">Caribbean Getaways</p>
+          <h1 style="margin:0;font-family:Georgia,serif;font-size:22px;color:#FFFFFF;font-weight:normal;">{escape(subject)}</h1>
+        </td></tr>
+        <tr><td style="padding:20px 18px 8px 18px;">
+          <p style="margin:0 10px 12px 10px;color:#5A6D7E;font-size:14px;">Thu/Fri/Sat check-in · 3–4 nights · Jan–Mar · under $200/night (before fees)</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">{''.join(rows_html)}</table>
+        </td></tr>
+        <tr><td align="center" style="padding:18px 28px 30px 28px;">
+          <a href="{escape(page)}" style="display:inline-block;padding:14px 30px;background:#2EC4B6;color:#FFFFFF;font-weight:700;text-decoration:none;border-radius:12px;">See all matches</a>
+          <p style="margin:14px 0 0 0;color:#8A7560;font-size:12px;">Timeshare rentals go fast — book directly on the site.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>
+"""
+    return send_email(subject, "\n".join(text_lines), html, to=to)

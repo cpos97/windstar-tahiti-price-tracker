@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · Windstar Tahiti Price Tracker{% endblock %}
+{% block title %}Tahiti Cruise · Postma Trips{% endblock %}
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -350,12 +350,12 @@
         if (!data.running) {
           clearInterval(iv);
           // Reload so last-checked times and prices refresh
-          window.location.replace('/?checked=1');
+          window.location.replace('/tahiti?checked=1');
         }
       } catch (e) { /* keep polling */ }
       if (tries >= maxTries) {
         clearInterval(iv);
-        window.location.replace('/?checked=1');
+        window.location.replace('/tahiti?checked=1');
       }
     }, 2000);
   }

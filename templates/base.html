@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}Windstar Tahiti Price Tracker{% endblock %}</title>
+  <title>{% block title %}Postma Trips · Price Tracker{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="/static/style.css?v={{ static_version() }}" />
@@ -14,20 +14,23 @@
     <a class="brand" href="/">
       <span class="brand-icon">🌴</span>
       <span>
-        Windstar Tahiti
-        <span class="brand-sub">Family Trip · Price Tracker</span>
+        Postma Trips
+        <span class="brand-sub">Family Travel · Price Tracker</span>
       </span>
     </a>
     <nav>
-      <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
-      <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+      {% set path = request.url.path %}
+      <a href="/" class="{% if path == '/' %}active{% endif %}">Trips</a>
+      <a href="/tahiti" class="{% if path == '/tahiti' or path.startswith('/cruises') %}active{% endif %}">Tahiti</a>
+      <a href="/getaways" class="{% if path.startswith('/getaways') %}active{% endif %}">Getaways</a>
+      <a href="/settings" class="{% if path == '/settings' %}active{% endif %}">Settings</a>
     </nav>
   </header>
   <main class="container">
     {% block content %}{% endblock %}
   </main>
   <footer class="footer">
-    Windstar · Star Breeze · French Polynesia · checks every {{ check_interval | default(60) }} min ·
+    Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 3 h ·
     {% if email_ok %}
       <span class="pill ok">Email alerts on</span>
     {% else %}

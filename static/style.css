@@ -154,7 +154,8 @@ nav a.active {
 }
 
 .countdown-card .eyebrow,
-.highlights-card .eyebrow {
+.highlights-card .eyebrow,
+.trip-card .eyebrow {
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -164,7 +165,8 @@ nav a.active {
 }
 
 .countdown-card h2,
-.highlights-card h2 {
+.highlights-card h2,
+.trip-card h2 {
   font-family: var(--display);
   font-size: 1.75rem;
   font-weight: 600;
@@ -1470,4 +1472,99 @@ code {
   .cm-val { font-size: 1.25rem; }
   .cm-val.compare { font-size: 1.05rem; }
   .cm-label { font-size: 0.72rem; }
+}
+
+/* ── Trips home ─────────────────────────────────────────────────────────── */
+/* One trip per row, stacked — each is its own destination, not a comparison */
+.trip-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  color: var(--slate);
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trip-card:hover,
+.trip-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 44px rgba(10, 45, 66, 0.22);
+}
+
+.trip-card h2 { margin: 0; }
+
+.trip-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trip-card-top .eyebrow { margin: 0; }
+
+.trip-sub {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.trip-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 0.75rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid rgba(15, 76, 117, 0.1);
+  border-bottom: 1px solid rgba(15, 76, 117, 0.1);
+}
+
+.trip-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.trip-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.trip-go {
+  font-weight: 700;
+  color: var(--ocean-mid);
+  white-space: nowrap;
+}
+
+/* ── Getaways ───────────────────────────────────────────────────────────── */
+.getaway-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.9rem 1.2rem;
+}
+
+.getaway-rules .rule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.small { font-size: 0.8rem; }
+
+td.num,
+th.num { text-align: right; white-space: nowrap; }
+
+.miss { color: #b45309; }
+
+.card h2 .pill {
+  vertical-align: middle;
+  margin-left: 0.35rem;
 }

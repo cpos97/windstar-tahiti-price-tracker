@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Trips · Postma Trips{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-title-block">
+    <h1 class="hero-title">Postma Family Trips</h1>
+    <p class="hero-subtitle">Every trip we're watching, in one place</p>
+  </div>
+</section>
+
+<section class="trip-grid">
+  <a class="card trip-card" href="/tahiti">
+    <div class="trip-card-top">
+      <p class="eyebrow">Windstar cruise · booked</p>
+      <span class="pill ok">Watching</span>
+    </div>
+    <h2>Tahiti Cruise</h2>
+    <p class="trip-sub">Star Breeze · French Polynesia · {{ departure_label }}</p>
+
+    <div class="trip-stats">
+      <div>
+        <div class="label">Best price now</div>
+        <div class="price">{{ (tahiti_best.current_price | money(tahiti_best.currency)) if tahiti_best else '—' }}</div>
+        {% if tahiti_best %}
+        <div class="trip-note">
+          {{ tahiti_best.name.split('·')[0].strip() }}{% if tahiti_best.price_category %} · {{ tahiti_best.price_category }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="label">Days to go</div>
+        <div class="price">{{ days_to_go if days_to_go is not none else '—' }}</div>
+        <div class="trip-note">{{ tahiti_sources }} booking sites</div>
+      </div>
+    </div>
+
+    <div class="trip-foot">
+      <span class="meta">Checked {{ tahiti_checked | fmt_last_checked }}</span>
+      <span class="trip-go" aria-hidden="true">Open ›</span>
+    </div>
+  </a>
+
+  <a class="card trip-card" href="/getaways">
+    <div class="trip-card-top">
+      <p class="eyebrow">Timeshare deals · Koala + RedWeek</p>
+      {% if getaway_matches %}
+        <span class="pill ok">{{ getaway_matches }} match{% if getaway_matches != 1 %}es{% endif %}</span>
+      {% else %}
+        <span class="pill muted-pill">Searching</span>
+      {% endif %}
+    </div>
+    <h2>Caribbean Getaways</h2>
+    <p class="trip-sub">Aruba · Key West · St. John · {{ getaway_season }}</p>
+
+    <div class="trip-stats">
+      <div>
+        <div class="label">Matches</div>
+        <div class="price">{{ getaway_matches }}</div>
+        <div class="trip-note">{{ getaway_near }} close call{% if getaway_near != 1 %}s{% endif %}</div>
+      </div>
+      <div>
+        <div class="label">Cheapest in season</div>
+        <div class="price">{{ (getaway_cheapest.cheapest_price | money('USD')) if getaway_cheapest else '—' }}</div>
+        {% if getaway_cheapest %}
+        <div class="trip-note">/night · {{ getaway_cheapest.resort }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="trip-foot">
+      <span class="meta">
+        {% if getaway_checked %}Checked {{ getaway_checked | fmt_last_checked }}{% else %}First check starting soon{% endif %}
+      </span>
+      <span class="trip-go" aria-hidden="true">Open ›</span>
+    </div>
+  </a>
+</section>
+{% endblock %}

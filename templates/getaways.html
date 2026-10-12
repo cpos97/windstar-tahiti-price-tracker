@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Caribbean Getaways · Postma Trips{% endblock %}
+
+{% macro stay_row(s, show_reason=False) %}
+<tr>
+  <td>
+    <strong>{{ s.resort }}</strong>
+    <div class="muted small">{{ s.area }}{% if s.unit %} · {{ s.unit }}{% endif %}</div>
+  </td>
+  <td>
+    {{ s.check_in.strftime('%a %b %-d') }} → {{ s.check_out.strftime('%a %b %-d') }}
+    <div class="muted small">{{ s.nights }} nights{% if show_reason %} · <span class="miss">{{ miss_reason(s) }}</span>{% endif %}</div>
+  </td>
+  <td class="num">
+    <strong class="low">{{ s.price_night | money('USD') }}</strong><span class="muted small">/night</span>
+    {% if s.total_price %}<div class="muted small">{{ s.total_price | money('USD') }} total</div>{% endif %}
+  </td>
+  <td>{{ 'RedWeek' if s.source == 'redweek' else 'Koala' }}</td>
+  <td><a class="btn secondary btn-sm" href="{{ s.url }}" target="_blank" rel="noopener">View</a></td>
+</tr>
+{% endmacro %}
+
+{% block content %}
+<p class="breadcrumb"><a href="/">← All trips</a></p>
+
+<section class="hero">
+  <div class="hero-title-block">
+    <h1 class="hero-title">Caribbean Getaways</h1>
+    <p class="hero-subtitle">Koala + RedWeek timeshare rentals</p>
+  </div>
+  <form action="/getaways/check" method="post">
+    <button type="submit" class="btn secondary" {% if running %}disabled{% endif %}>
+      {% if running %}Checking…{% else %}Check now{% endif %}
+    </button>
+  </form>
+</section>
+
+{% if request.query_params.get('checking') %}
+<div class="banner ok">Checking both sites now — takes a minute or two. Refresh to see results.</div>
+{% elif request.query_params.get('busy') %}
+<div class="banner warn">A check is already running — refresh in a minute.</div>
+{% endif %}
+
+<section class="card getaway-rules">
+  <div class="rule"><span class="label">When</span><strong>{{ season_start.strftime('%b %-d') }} – {{ season_end.strftime('%b %-d, %Y') }}</strong></div>
+  <div class="rule"><span class="label">Check-in</span><strong>Thu, Fri or Sat</strong></div>
+  <div class="rule"><span class="label">Length</span><strong>3–4 nights</strong></div>
+  <div class="rule"><span class="label">Price</span><strong>Under {{ max_price | money('USD') }}/night</strong><span class="muted small">listed rate, before fees</span></div>
+  <div class="rule"><span class="label">Last checked</span><strong>{{ last_checked | fmt_last_checked }}</strong><span class="muted small">every {{ check_hours }} hours · email on new matches</span></div>
+</section>
+
+<section class="card table-wrap">
+  <h2>Matches <span class="pill {% if matches %}ok{% else %}muted-pill{% endif %}">{{ matches | length }}</span></h2>
+  {% if matches %}
+  <table>
+    <thead><tr><th>Resort</th><th>Dates</th><th class="num">Price</th><th>Site</th><th></th></tr></thead>
+    <tbody>{% for s in matches %}{{ stay_row(s) }}{% endfor %}</tbody>
+  </table>
+  {% else %}
+  <p class="muted">Nothing meets every rule right now. You'll get an email the moment something does.</p>
+  {% endif %}
+</section>
+
+<section class="card table-wrap">
+  <h2>Close calls <span class="pill muted-pill">{{ near | length }}</span></h2>
+  <p class="muted">In season and under {{ max_price | money('USD') }}/night, but the length or check-in day is off.
+    Owners will sometimes split a week if you ask.</p>
+  {% if near %}
+  <table>
+    <thead><tr><th>Resort</th><th>Dates</th><th class="num">Price</th><th>Site</th><th></th></tr></thead>
+    <tbody>{% for s in near %}{{ stay_row(s, True) }}{% endfor %}</tbody>
+  </table>
+  {% else %}
+  <p class="muted">None right now.</p>
+  {% endif %}
+</section>
+
+<section class="card table-wrap">
+  <h2>Cheapest in season, by resort</h2>
+  <p class="muted">Lowest nightly rate listed {{ season_start.strftime('%b') }}–{{ season_end.strftime('%b %Y') }}, any length or day — shows how close each resort is to your price.</p>
+  <table>
+    <thead><tr><th>Resort</th><th class="num">RedWeek</th><th class="num">Koala</th></tr></thead>
+    <tbody>
+      {% for r in resort_rows %}
+      <tr>
+        <td><strong>{{ r.name }}</strong><div class="muted small">{{ r.area }}</div></td>
+        {% for st in (r.redweek, r.koala) %}
+        <td class="num">
+          {% if st is none %}
+            <span class="muted">Not checked yet</span>
+          {% elif st.last_error %}
+            <span class="error-text" title="{{ st.last_error }}">Couldn't check</span>
+          {% elif st.cheapest_price is not none %}
+            <span class="{% if st.cheapest_price < max_price %}low{% endif %}">{{ st.cheapest_price | money('USD') }}</span><span class="muted small">/night</span>
+          {% else %}
+            <span class="muted">No stays listed</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

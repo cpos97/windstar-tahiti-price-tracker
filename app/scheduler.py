@@ -31,8 +31,13 @@ scheduler = BackgroundScheduler(
     executors={
         "default": ThreadPoolExecutor(max_workers=1),
         "watchdog": ThreadPoolExecutor(max_workers=1),
+        # Getaway checks are plain HTTP (no Chromium), so they get their own
+        # slot rather than queueing behind — or blocking — the price scrapes.
+        "getaways": ThreadPoolExecutor(max_workers=1),
     }
 )
+
+GETAWAY_CHECK_HOURS = 3
 
 # Once a day is plenty for cabin counts — each check walks 5 live category
 # pages against ID90's vendor system, so it's not something to run often.
@@ -184,6 +189,17 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _getaway_job,
+        "interval",
+        hours=GETAWAY_CHECK_HOURS,
+        id="getaway_check",
+        executor="getaways",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.now() + timedelta(minutes=3),
+    )
     # Runs in its own slot so a wedged price check can't block it too
     scheduler.add_job(
         _watchdog_job,
@@ -197,9 +213,10 @@ def start_scheduler() -> None:
     )
     scheduler.start()
     logger.info(
-        "Scheduler started: price check every %s minutes, cabin availability daily at "
-        "%02d:%02d, login refresh %s %02d:%02d (%s)",
+        "Scheduler started: price check every %s minutes, getaways every %s hours, "
+        "cabin availability daily at %02d:%02d, login refresh %s %02d:%02d (%s)",
         minutes,
+        GETAWAY_CHECK_HOURS,
         CABIN_CHECK_HOUR,
         CABIN_CHECK_MINUTE,
         SESSION_REFRESH_DAY,
@@ -207,6 +224,19 @@ def start_scheduler() -> None:
         SESSION_REFRESH_MINUTE,
         CABIN_CHECK_TZ.key,
     )
+
+
+def _getaway_job() -> None:
+    from app.getaways import run_getaway_check
+
+    db = SessionLocal()
+    try:
+        result = run_getaway_check(db)
+        logger.info("Getaway check: %s", result)
+    except Exception:  # noqa: BLE001
+        logger.exception("Getaway check failed")
+    finally:
+        db.close()
 
 
 def stop_scheduler() -> None:

@@ -24,10 +24,18 @@ from app.categories import load_table
 from app.database import get_db, init_db
 from app.jobs import get_status as get_check_status
 from app.jobs import start_check_all
-from app.models import AlertLog, CabinAvailability, Cruise, PriceHistory
+from app import getaways
+from app.models import (
+    AlertLog,
+    CabinAvailability,
+    Cruise,
+    GetawayListing,
+    GetawayResortStatus,
+    PriceHistory,
+)
 from app.emailer import send_family_invite_email
 from app.notifier import send_test_alert
-from app.scheduler import start_scheduler, stop_scheduler
+from app.scheduler import GETAWAY_CHECK_HOURS, start_scheduler, stop_scheduler
 from app.tracker import (
     check_all_active,
     check_cabin_availability,
@@ -292,6 +300,98 @@ def login_submit(request: Request, password: Annotated[str, Form()], next: Annot
 
 
 @app.get("/", response_class=HTMLResponse)
+def trips_home(request: Request, db: DbDep):
+    """Home page: one card per trip being watched."""
+    cruises = (
+        db.query(Cruise)
+        .filter(Cruise.is_benchmark.isnot(True), Cruise.active.is_(True))
+        .all()
+    )
+    priced = [c for c in cruises if c.current_price is not None]
+    best = min(priced, key=lambda c: c.current_price) if priced else None
+    dep = departure_context()
+    try:
+        days_to_go = (date.fromisoformat(dep["departure_iso"][:10]) - date.today()).days
+    except ValueError:
+        days_to_go = None
+    tahiti_checked = max((c.last_checked for c in cruises if c.last_checked), default=None)
+
+    start, end = getaways.season_window()
+    active_listings = db.query(GetawayListing).filter(GetawayListing.active.is_(True))
+    statuses = db.query(GetawayResortStatus).all()
+    cheapest = min(
+        (st for st in statuses if st.cheapest_price is not None),
+        key=lambda st: st.cheapest_price,
+        default=None,
+    )
+    ctx = {
+        "tahiti_best": best,
+        "tahiti_sources": len(cruises),
+        "tahiti_checked": tahiti_checked,
+        "days_to_go": days_to_go,
+        "getaway_matches": active_listings.filter(GetawayListing.kind == "match").count(),
+        "getaway_near": active_listings.filter(GetawayListing.kind == "near").count(),
+        "getaway_cheapest": cheapest,
+        "getaway_checked": max((st.last_checked for st in statuses if st.last_checked), default=None),
+        "getaway_season": f"{start:%b} – {end:%b %Y}",
+        "getaway_resorts": len(getaways.RESORTS),
+        "check_interval": config.CHECK_INTERVAL_MINUTES,
+        "email_ok": config.email_configured(),
+    }
+    ctx.update(dep)
+    return templates.TemplateResponse(request, "trips.html", ctx)
+
+
+@app.get("/getaways", response_class=HTMLResponse)
+def getaways_page(request: Request, db: DbDep):
+    start, end = getaways.season_window()
+    active = db.query(GetawayListing).filter(GetawayListing.active.is_(True))
+    matches = active.filter(GetawayListing.kind == "match").order_by(GetawayListing.check_in).all()
+    near = (
+        active.filter(GetawayListing.kind == "near")
+        .order_by(GetawayListing.price_night, GetawayListing.check_in)
+        .limit(60)
+        .all()
+    )
+    statuses = {
+        (st.resort, st.source): st for st in db.query(GetawayResortStatus).all()
+    }
+    resort_rows = [
+        {
+            "name": r["name"],
+            "area": r["area"],
+            "redweek": statuses.get((r["name"], "redweek")),
+            "koala": statuses.get((r["name"], "koala")),
+        }
+        for r in getaways.RESORTS
+    ]
+    checked = [st.last_checked for st in statuses.values() if st.last_checked]
+    ctx = {
+        "matches": matches,
+        "near": near,
+        "miss_reason": getaways.miss_reason,
+        "resort_rows": resort_rows,
+        "season_start": start,
+        "season_end": end,
+        "max_price": getaways.MAX_PRICE_NIGHT,
+        "last_checked": max(checked) if checked else None,
+        "running": getaways.is_running(),
+        "check_hours": GETAWAY_CHECK_HOURS,
+        "check_interval": config.CHECK_INTERVAL_MINUTES,
+        "email_ok": config.email_configured(),
+    }
+    return templates.TemplateResponse(request, "getaways.html", ctx)
+
+
+@app.post("/getaways/check")
+def getaways_check_now():
+    started = getaways.start_background_check()
+    return RedirectResponse(
+        f"/getaways?{'checking' if started else 'busy'}=1", status_code=303
+    )
+
+
+@app.get("/tahiti", response_class=HTMLResponse)
 def dashboard(request: Request, db: DbDep):
     # `isnot(True)` rather than `is_(False)` so rows predating the column
     # (NULL after the ALTER TABLE migration) still count as real sources.
@@ -666,7 +766,7 @@ def delete_cruise(cruise_id: int, db: DbDep):
         raise HTTPException(404, "Cruise not found")
     db.delete(cruise)
     db.commit()
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse("/tahiti", status_code=303)
 
 
 @app.post("/check-all")
@@ -674,8 +774,8 @@ def check_all():
     """Start a background price check (Playwright scrapes take 1–2+ minutes)."""
     started, message = start_check_all()
     if not started:
-        return RedirectResponse("/?busy=1", status_code=303)
-    return RedirectResponse("/?checking=1", status_code=303)
+        return RedirectResponse("/tahiti?busy=1", status_code=303)
+    return RedirectResponse("/tahiti?checking=1", status_code=303)
 
 
 @app.get("/api/check-status")

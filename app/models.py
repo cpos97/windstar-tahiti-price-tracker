@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -91,3 +91,45 @@ class AlertLog(Base):
     success: Mapped[bool] = mapped_column(Boolean, default=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GetawayListing(Base):
+    """A Koala/RedWeek stay that fits (or nearly fits) the getaway criteria."""
+
+    __tablename__ = "getaway_listings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    # e.g. "redweek:R1506441" or "koala:418647:2027-02-20:2027-02-24" — Koala
+    # open-availability listings can be booked for several date windows.
+    key: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    resort: Mapped[str] = mapped_column(String(120), nullable=False)
+    area: Mapped[str] = mapped_column(String(40), nullable=False)
+    unit: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    check_in: Mapped[datetime] = mapped_column(Date, nullable=False)
+    check_out: Mapped[datetime] = mapped_column(Date, nullable=False)
+    nights: Mapped[int] = mapped_column(Integer, nullable=False)
+    price_night: Mapped[float] = mapped_column(Float, nullable=False)
+    total_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    # "match" = meets every rule; "near" = right season and price, but the
+    # length or check-in day is off
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class GetawayResortStatus(Base):
+    """Last check of one resort on one site, so the page can show what's out there."""
+
+    __tablename__ = "getaway_resort_status"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    resort: Mapped[str] = mapped_column(String(120), nullable=False)
+    cheapest_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
