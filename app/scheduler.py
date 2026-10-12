@@ -37,7 +37,7 @@ scheduler = BackgroundScheduler(
     }
 )
 
-GETAWAY_CHECK_HOURS = 3
+GETAWAY_CHECK_HOURS = 6
 
 # Once a day is plenty for cabin counts — each check walks 5 live category
 # pages against ID90's vendor system, so it's not something to run often.

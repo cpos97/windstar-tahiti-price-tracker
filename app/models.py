@@ -132,6 +132,8 @@ class GetawayResortStatus(Base):
     cheapest_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When this resort was last read successfully — the prices shown date from then
+    last_ok: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

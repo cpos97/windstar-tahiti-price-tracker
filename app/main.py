@@ -388,7 +388,17 @@ def getaways_page(request: Request, db: DbDep):
                 "last_checked": max(
                     (st.last_checked for st in src_statuses if st.last_checked), default=None
                 ),
-                "errors": [st for st in src_statuses if st.last_error],
+                "errors": [
+                    st for st in src_statuses
+                    if st.last_error and st.last_error != getaways.NOT_RESPONDING
+                ],
+                # The whole site stopped answering (e.g. it rate-limited us):
+                # say so plainly, with the age of the prices still on show
+                "unreachable": bool(src_statuses)
+                and all(st.last_error == getaways.NOT_RESPONDING for st in src_statuses),
+                "prices_as_of": min(
+                    (st.last_ok for st in src_statuses if st.last_ok), default=None
+                ),
                 "matches": sum(1 for m in matches if m.source == src),
                 "near": sum(1 for m in near if m.source == src),
             }

@@ -15,8 +15,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+import socket
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -149,7 +151,7 @@ def miss_reason(stay) -> str:
 
 def _get(url: str, headers: dict | None = None) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": _UA, **(headers or {})})
-    with urllib.request.urlopen(req, timeout=45) as resp:
+    with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read()
 
 
@@ -384,21 +386,41 @@ def _status_row(db: Session, source: str, resort: str) -> GetawayResortStatus:
     return row
 
 
-def _check_one(db: Session, resort: dict, source: str, start: date, end: date, now: datetime) -> None:
+NOT_RESPONDING = "Not responding"
+
+
+def _is_unreachable(exc: Exception) -> bool:
+    """A dead connection (timeout, refused) as opposed to one bad page.
+
+    HTTPError is a URLError too, but a 404/500 is about that resort's page,
+    not the site being down.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return False
+    return isinstance(exc, (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError))
+
+
+def _check_one(
+    db: Session, resort: dict, source: str, start: date, end: date, now: datetime
+) -> bool:
+    """Check one resort on one site. False if the site itself isn't reachable."""
     status = _status_row(db, source, resort["name"])
     status.last_checked = now
     try:
         stays, note, cheapest_hint = FETCHERS[source](resort, start, end)
     except Exception as exc:  # noqa: BLE001 — one site/resort must not stop the rest
         logger.warning("Getaway check failed: %s @ %s: %s", resort["name"], source, exc)
-        status.last_error = str(exc)[:500]
+        unreachable = _is_unreachable(exc)
+        status.last_error = NOT_RESPONDING if unreachable else str(exc)[:500]
         db.commit()
-        return  # keep the listings we already know about rather than dropping them
+        # Keep the listings and prices we already know about rather than dropping them
+        return not unreachable
 
     in_season = [s for s in stays if start <= s.check_in <= end]
     status.cheapest_price = min((s.price_night for s in in_season), default=cheapest_hint)
     status.note = note
     status.last_error = None
+    status.last_ok = now
 
     seen: set[str] = set()
     for stay in stays:
@@ -437,6 +459,7 @@ def _check_one(db: Session, resort: dict, source: str, start: date, end: date, n
         if row.key not in seen:
             row.active = False
     db.commit()
+    return True
 
 
 SOURCES = ("redweek", "koala")
@@ -486,9 +509,21 @@ def run_getaway_check(db: Session) -> dict:
     try:
         start, end = season_window()
         now = datetime.now(timezone.utc)
+        # If a site stops answering (e.g. it has rate-limited this server),
+        # don't keep knocking for every remaining resort — mark them and move
+        # on; the next scheduled check tries again.
+        down: set[str] = set()
         for resort in RESORTS:
-            for source in ("redweek", "koala"):
-                _check_one(db, resort, source, start, end, now)
+            for source in SOURCES:
+                if source in down:
+                    status = _status_row(db, source, resort["name"])
+                    status.last_checked = now
+                    status.last_error = NOT_RESPONDING
+                    db.commit()
+                    continue
+                if not _check_one(db, resort, source, start, end, now):
+                    down.add(source)
+                    logger.warning("%s isn't responding — skipping it until the next check", source)
         _log_cheapest(db, now)
 
         new_matches = (

@@ -137,7 +137,11 @@
 
     <div class="meta">
       Last checked: {{ src.last_checked | fmt_last_checked }}
-      {% if src.errors %}<span class="error-text"> · {{ src.errors|length }} resort{% if src.errors|length != 1 %}s{% endif %} couldn't be read</span>{% endif %}
+      {% if src.unreachable %}
+      <span class="error-text"> · {{ src.label }} isn't responding right now{% if src.prices_as_of %} — showing its prices from {{ src.prices_as_of | fmt_last_checked }}{% endif %}</span>
+      {% elif src.errors %}
+      <span class="error-text"> · {{ src.errors|length }} resort{% if src.errors|length != 1 %}s{% endif %} couldn't be read</span>
+      {% endif %}
     </div>
 
     <div class="price-history">
