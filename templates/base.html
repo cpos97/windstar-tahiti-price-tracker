@@ -12,10 +12,10 @@
 <body class="{% block body_class %}theme-neutral{% endblock %}">
   <header class="topbar">
     <a class="brand" href="/">
-      <span class="brand-icon">🧭</span>
+      <span class="brand-icon">{% block brand_icon %}🌴{% endblock %}</span>
       <span>
-        Trip Tracker
-        <span class="brand-sub">Travel Deals · Price Tracker</span>
+        {% block brand_name %}Trip Tracker{% endblock %}
+        <span class="brand-sub">{% block brand_sub %}Travel Deals · Price Tracker{% endblock %}</span>
       </span>
     </a>
     <nav>
@@ -30,7 +30,7 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="footer">
-    Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 3 h ·
+    {% block footer_text %}Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 3 h{% endblock %} ·
     {% if email_ok %}
       <span class="pill ok">Email alerts on</span>
     {% else %}

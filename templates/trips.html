@@ -1,79 +1,71 @@
 {% extends "base.html" %}
-{% block title %}Trips · Trip Tracker{% endblock %}
+{% block title %}Trip Tracker{% endblock %}
+{% block body_class %}theme-palms{% endblock %}
 
 {% block content %}
-<section class="hero">
+{# Palm silhouettes: one shape, drawn twice (mirrored on the right) #}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="palm" viewBox="0 0 220 340">
+    <path d="M118 340 C 111 290, 103 240, 109 190 C 113 160, 120 140, 118 118"
+          fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" />
+    <path d="M118 340 C 111 290, 103 240, 109 190 C 113 160, 120 140, 118 118"
+          fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="13" stroke-dasharray="2 11" />
+    <path d="M118 116 C 86 92 44 92 8 132 C 46 110 86 112 118 124 Z" fill="currentColor" />
+    <path d="M118 114 C 92 74 56 58 22 62 C 58 72 92 92 116 122 Z" fill="currentColor" />
+    <path d="M118 112 C 110 70 92 40 66 22 C 86 50 104 80 114 118 Z" fill="currentColor" />
+    <path d="M118 112 C 132 72 154 46 186 34 C 160 60 138 88 122 118 Z" fill="currentColor" />
+    <path d="M120 114 C 152 92 190 94 216 120 C 186 108 152 110 122 122 Z" fill="currentColor" />
+    <path d="M120 118 C 150 122 176 146 190 182 C 168 152 146 136 120 126 Z" fill="currentColor" />
+    <path d="M116 118 C 88 126 62 150 50 186 C 72 156 94 138 118 126 Z" fill="currentColor" />
+    <circle cx="111" cy="127" r="6" fill="currentColor" />
+    <circle cx="124" cy="129" r="6" fill="currentColor" />
+    <circle cx="117" cy="135" r="6" fill="currentColor" />
+  </symbol>
+</svg>
+<svg class="palm palm-left" viewBox="0 0 220 340" aria-hidden="true"><use href="#palm" /></svg>
+<svg class="palm palm-right" viewBox="0 0 220 340" aria-hidden="true">
+  <use href="#palm" transform="translate(220 0) scale(-1 1)" />
+</svg>
+
+<section class="hero home-hero">
   <div class="hero-title-block">
     <h1 class="hero-title">Trip Tracker</h1>
-    <p class="hero-subtitle">Every trip we're watching, in one place</p>
+    <p class="hero-subtitle">Pick a getaway 🌴</p>
   </div>
 </section>
 
-<section class="trip-grid">
-  <a class="card trip-card" href="/tahiti">
-    <div class="trip-card-top">
-      <p class="eyebrow">Windstar cruise · booked</p>
-      <span class="pill ok">Watching</span>
-    </div>
-    <h2>Tahiti Cruise</h2>
-    <p class="trip-sub">Star Breeze · French Polynesia · {{ departure_label }}</p>
-
-    <div class="trip-stats">
-      <div>
-        <div class="label">Best price now</div>
-        <div class="price">{{ (tahiti_best.current_price | money(tahiti_best.currency)) if tahiti_best else '—' }}</div>
+<nav class="trip-tiles" aria-label="Tracked vacations">
+  <a class="trip-tile tile-tahiti" href="/tahiti">
+    <span class="tile-icon" aria-hidden="true">🛳️</span>
+    <span class="tile-body">
+      <span class="tile-kicker">Windstar cruise · {{ departure_label }}</span>
+      <span class="tile-title">Tahiti Cruise</span>
+      <span class="tile-stats">
         {% if tahiti_best %}
-        <div class="trip-note">
-          {{ tahiti_best.name.split('·')[0].strip() }}{% if tahiti_best.price_category %} · {{ tahiti_best.price_category }}{% endif %}
-        </div>
+        <span class="tile-chip">Best {{ tahiti_best.current_price | money(tahiti_best.currency) }}</span>
         {% endif %}
-      </div>
-      <div>
-        <div class="label">Days to go</div>
-        <div class="price">{{ days_to_go if days_to_go is not none else '—' }}</div>
-        <div class="trip-note">{{ tahiti_sources }} booking sites</div>
-      </div>
-    </div>
-
-    <div class="trip-foot">
-      <span class="meta">Checked {{ tahiti_checked | fmt_last_checked }}</span>
-      <span class="trip-go" aria-hidden="true">Open ›</span>
-    </div>
-  </a>
-
-  <a class="card trip-card" href="/getaways">
-    <div class="trip-card-top">
-      <p class="eyebrow">Timeshare deals · Koala + RedWeek</p>
-      {% if getaway_matches %}
-        <span class="pill ok">{{ getaway_matches }} match{% if getaway_matches != 1 %}es{% endif %}</span>
-      {% else %}
-        <span class="pill muted-pill">Searching</span>
-      {% endif %}
-    </div>
-    <h2>Caribbean Getaways</h2>
-    <p class="trip-sub">Aruba · Key West · St. John · {{ getaway_season }}</p>
-
-    <div class="trip-stats">
-      <div>
-        <div class="label">Matches</div>
-        <div class="price">{{ getaway_matches }}</div>
-        <div class="trip-note">{{ getaway_near }} close call{% if getaway_near != 1 %}s{% endif %}</div>
-      </div>
-      <div>
-        <div class="label">Cheapest in season</div>
-        <div class="price">{{ (getaway_cheapest.cheapest_price | money('USD')) if getaway_cheapest else '—' }}</div>
-        {% if getaway_cheapest %}
-        <div class="trip-note">/night · {{ getaway_cheapest.resort }}</div>
+        {% if days_to_go is not none %}
+        <span class="tile-chip">{{ days_to_go }} days to go</span>
         {% endif %}
-      </div>
-    </div>
-
-    <div class="trip-foot">
-      <span class="meta">
-        {% if getaway_checked %}Checked {{ getaway_checked | fmt_last_checked }}{% else %}First check starting soon{% endif %}
       </span>
-      <span class="trip-go" aria-hidden="true">Open ›</span>
-    </div>
+    </span>
+    <span class="tile-go" aria-hidden="true">›</span>
   </a>
-</section>
+
+  <a class="trip-tile tile-caribbean" href="/getaways">
+    <svg class="tile-palm" viewBox="0 0 220 340" aria-hidden="true"><use href="#palm" /></svg>
+    <span class="tile-icon" aria-hidden="true">🏝️</span>
+    <span class="tile-body">
+      <span class="tile-kicker">Vacation rentals · {{ getaway_season }}</span>
+      <span class="tile-title">Caribbean Getaways</span>
+      <span class="tile-stats">
+        <span class="tile-chip">{{ getaway_matches }} match{% if getaway_matches != 1 %}es{% endif %}</span>
+        {% if getaway_cheapest %}
+        <span class="tile-chip">From {{ '$%.0f' | format(getaway_cheapest.cheapest_price) }}/night</span>
+        {% endif %}
+      </span>
+    </span>
+    <span class="tile-go" aria-hidden="true">›</span>
+  </a>
+</nav>
 {% endblock %}

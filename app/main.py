@@ -30,6 +30,7 @@ from app.models import (
     CabinAvailability,
     Cruise,
     GetawayListing,
+    GetawayPriceHistory,
     GetawayResortStatus,
     PriceHistory,
 )
@@ -344,7 +345,14 @@ def trips_home(request: Request, db: DbDep):
 
 @app.get("/getaways", response_class=HTMLResponse)
 def getaways_page(request: Request, db: DbDep):
+    """Caribbean Getaways dashboard — laid out like the Tahiti one."""
     start, end = getaways.season_window()
+    today = date.today()
+    if today < start:
+        countdown_iso, countdown_title = f"{start.isoformat()}T00:00:00", "Days until the season"
+    else:
+        countdown_iso, countdown_title = f"{end.isoformat()}T23:59:59", "Days left in the season"
+
     active = db.query(GetawayListing).filter(GetawayListing.active.is_(True))
     matches = active.filter(GetawayListing.kind == "match").order_by(GetawayListing.check_in).all()
     near = (
@@ -353,26 +361,63 @@ def getaways_page(request: Request, db: DbDep):
         .limit(60)
         .all()
     )
-    statuses = {
-        (st.resort, st.source): st for st in db.query(GetawayResortStatus).all()
-    }
-    resort_rows = [
+    statuses = {(st.resort, st.source): st for st in db.query(GetawayResortStatus).all()}
+    best = getaways.cheapest_by_source(db)
+
+    sources = []
+    for src in getaways.SOURCES:
+        rows = (
+            db.query(GetawayPriceHistory)
+            .filter(GetawayPriceHistory.source == src)
+            .order_by(GetawayPriceHistory.checked_at.asc())
+            .all()
+        )
+        current = best[src].cheapest_price if best[src] else None
+        prices = [r.price for r in rows]
+        src_statuses = [st for (_, so), st in statuses.items() if so == src]
+        sources.append(
+            {
+                "key": src,
+                "label": getaways.SOURCE_LABELS[src],
+                "home": "https://www.redweek.com/" if src == "redweek" else "https://www.go-koala.com/",
+                "current": current,
+                "resort": best[src].resort if best[src] else None,
+                "previous": prices[-2] if len(prices) >= 2 else None,
+                "lowest": min(prices + ([current] if current is not None else []), default=None),
+                "hist": _history_points(rows),
+                "last_checked": max(
+                    (st.last_checked for st in src_statuses if st.last_checked), default=None
+                ),
+                "errors": [st for st in src_statuses if st.last_error],
+                "matches": sum(1 for m in matches if m.source == src),
+                "near": sum(1 for m in near if m.source == src),
+            }
+        )
+
+    resort_cols = [
         {
             "name": r["name"],
-            "area": r["area"],
-            "redweek": statuses.get((r["name"], "redweek")),
-            "koala": statuses.get((r["name"], "koala")),
+            "short": r.get("short", r["name"]),
+            "cells": {src: statuses.get((r["name"], src)) for src in getaways.SOURCES},
         }
         for r in getaways.RESORTS
     ]
+    best_overall = min(
+        (b for b in best.values() if b is not None), key=lambda b: b.cheapest_price, default=None
+    )
     checked = [st.last_checked for st in statuses.values() if st.last_checked]
     ctx = {
         "matches": matches,
         "near": near,
         "miss_reason": getaways.miss_reason,
-        "resort_rows": resort_rows,
+        "sources": sources,
+        "resort_cols": resort_cols,
+        "source_labels": getaways.SOURCE_LABELS,
+        "best_overall": best_overall,
         "season_start": start,
         "season_end": end,
+        "countdown_iso": countdown_iso,
+        "countdown_title": countdown_title,
         "max_price": getaways.MAX_PRICE_NIGHT,
         "last_checked": max(checked) if checked else None,
         "running": getaways.is_running(),
@@ -381,6 +426,11 @@ def getaways_page(request: Request, db: DbDep):
         "email_ok": config.email_configured(),
     }
     return templates.TemplateResponse(request, "getaways.html", ctx)
+
+
+@app.get("/api/getaways/status")
+def getaways_status():
+    return {"running": getaways.is_running()}
 
 
 @app.post("/getaways/check")

@@ -173,8 +173,7 @@ nav a.active {
 }
 
 .countdown-card .eyebrow,
-.highlights-card .eyebrow,
-.trip-card .eyebrow {
+.highlights-card .eyebrow {
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -184,8 +183,7 @@ nav a.active {
 }
 
 .countdown-card h2,
-.highlights-card h2,
-.trip-card h2 {
+.highlights-card h2 {
   font-family: var(--display);
   font-size: 1.75rem;
   font-weight: 600;
@@ -1493,74 +1491,180 @@ code {
   .cm-label { font-size: 0.72rem; }
 }
 
-/* ── Trips home ─────────────────────────────────────────────────────────── */
-/* One trip per row, stacked — each is its own destination, not a comparison */
-.trip-grid {
+/* ── Trips home: tropical sunset with swaying palms ────────────────────── */
+body.theme-palms {
+  background-color: #1d3557;
+  background-image:
+    radial-gradient(circle at 50% 70%, rgba(255, 226, 154, 0.95) 0, rgba(255, 196, 120, 0.55) 7%, transparent 18%),
+    linear-gradient(180deg,
+      #1f2b5b 0%, #5b3f8c 22%, #c8587a 42%, #ef8354 56%, #f6b36b 66%,
+      #f9d49b 70%, #2a9d8f 70.5%, #1f7a80 84%, #155e69 100%);
+}
+
+.palm {
+  position: fixed;
+  bottom: -8px;
+  z-index: 0;
+  color: #13233a;
+  opacity: 0.88;
+  pointer-events: none;
+  transform-origin: 54% 100%;
+  animation: palm-sway 7s ease-in-out infinite alternate;
+}
+
+.palm-left {
+  left: -40px;
+  height: min(78vh, 720px);
+}
+
+.palm-right {
+  right: -50px;
+  height: min(58vh, 540px);
+  animation-duration: 8.5s;
+  animation-delay: -3s;
+}
+
+@keyframes palm-sway {
+  from { transform: rotate(-1.6deg); }
+  to   { transform: rotate(1.6deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palm { animation: none; }
+}
+
+.home-hero { justify-content: center; text-align: center; }
+.home-hero .hero-title-block { margin: 0 auto; flex: 0 1 auto; }
+.home-hero .hero-subtitle::after { margin-left: auto; margin-right: auto; }
+
+.trip-tiles {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.25rem;
+  gap: 1.4rem;
+  max-width: 820px;
+  margin: 0.5rem auto 3rem;
 }
 
-.trip-card {
+.trip-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  min-height: 168px;
+  padding: 1.6rem 1.9rem;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  text-decoration: none;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 20px 44px rgba(8, 20, 40, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Darken the left side so the words stay readable over the art */
+.trip-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(6, 28, 46, 0.72) 0%, rgba(6, 28, 46, 0.35) 55%, rgba(6, 28, 46, 0.1) 100%);
+  z-index: 0;
+}
+
+.trip-tile > * { position: relative; z-index: 1; }
+
+.trip-tile:hover,
+.trip-tile:focus-visible {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 26px 56px rgba(8, 20, 40, 0.45);
+}
+
+.tile-tahiti { background-image: url("/static/polynesia-bg.jpg"); }
+
+.tile-caribbean {
+  background-image:
+    radial-gradient(circle at 82% 18%, rgba(255, 236, 179, 0.85) 0, rgba(255, 236, 179, 0) 22%),
+    linear-gradient(135deg, #0b4f6c 0%, #0e7c8c 40%, #2ec4b6 75%, #8ee3d6 100%);
+}
+
+.tile-palm {
+  position: absolute;
+  right: 6%;
+  bottom: -18px;
+  height: 135%;
+  color: rgba(8, 40, 58, 0.55);
+  z-index: 0 !important;
+}
+
+.tile-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  border-radius: 22px;
+  font-size: 2.7rem;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.tile-body {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 0;
-  color: var(--slate);
-  text-decoration: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
-.trip-card:hover,
-.trip-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 44px rgba(10, 45, 66, 0.22);
-}
-
-.trip-card h2 { margin: 0; }
-
-.trip-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.trip-card-top .eyebrow { margin: 0; }
-
-.trip-sub {
-  margin: 0 0 0.6rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.trip-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 220px));
-  gap: 0.75rem;
-  padding: 0.85rem 0;
-  border-top: 1px solid rgba(15, 76, 117, 0.1);
-  border-bottom: 1px solid rgba(15, 76, 117, 0.1);
-}
-
-.trip-note {
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin-top: 0.15rem;
-}
-
-.trip-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.45rem;
-}
-
-.trip-go {
+.tile-kicker {
+  font-size: 0.74rem;
   font-weight: 700;
-  color: var(--ocean-mid);
-  white-space: nowrap;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #bff3ee;
+}
+
+.tile-title {
+  font-family: var(--display);
+  font-size: 2.1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.tile-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.tile-chip {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.tile-go {
+  margin-left: auto;
+  font-size: 2.6rem;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+@media (max-width: 560px) {
+  .trip-tile { gap: 1rem; padding: 1.3rem 1.2rem; min-height: 140px; }
+  .tile-icon { width: 64px; height: 64px; font-size: 2rem; border-radius: 18px; }
+  .tile-title { font-size: 1.6rem; }
+  .palm-left { height: 52vh; left: -70px; }
+  .palm-right { height: 40vh; right: -80px; }
 }
 
 /* ── Getaways ───────────────────────────────────────────────────────────── */
@@ -1586,4 +1690,57 @@ th.num { text-align: right; white-space: nowrap; }
 .card h2 .pill {
   vertical-align: middle;
   margin-left: 0.35rem;
+}
+
+/* Cheapest-by-resort grid on Caribbean Getaways: both sites are peers, so
+   Koala's row isn't dimmed the way Tahiti's November comparison is */
+.resort-matrix {
+  grid-template-columns: auto repeat(var(--cabin-cols), minmax(52px, 1fr));
+  /* Let long resort names wrap instead of widening every column past the card */
+  min-width: min-content;
+}
+
+/* Two rental sites, so two equal columns rather than Tahiti's three */
+.rental-grid {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.resort-matrix .cm-head {
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.resort-matrix .cm-val,
+.resort-matrix .cm-val.compare {
+  font-size: 1.15rem;
+  opacity: 1;
+  color: var(--ocean-deep);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.resort-matrix .cm-val.deal {
+  color: #0d6b63;
+  background: rgba(46, 196, 182, 0.24);
+  border-color: rgba(13, 107, 99, 0.5);
+}
+
+.resort-matrix .cm-val.missing {
+  color: var(--muted);
+  opacity: 0.55;
+}
+
+/* Four nav links no longer fit beside the brand on a phone */
+@media (max-width: 640px) {
+  .topbar { padding: 0.65rem 0.75rem; gap: 0.5rem; }
+  .brand { white-space: nowrap; font-size: 0.95rem; }
+  .brand-sub { display: none; }
+  nav { gap: 0.1rem; }
+  nav a { padding: 0.4rem 0.55rem; font-size: 0.84rem; }
+}
+
+@media (max-width: 400px) {
+  .brand-icon { display: none; }
+  nav a { padding: 0.35rem 0.45rem; font-size: 0.8rem; }
 }

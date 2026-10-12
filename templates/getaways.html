@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Caribbean Getaways · Trip Tracker{% endblock %}
 {% block body_class %}theme-caribbean{% endblock %}
+{% block brand_icon %}🏝️{% endblock %}
+{% block brand_name %}Caribbean Getaways{% endblock %}
+{% block brand_sub %}Vacation Rentals · Price Tracker{% endblock %}
+{% block footer_text %}Koala · RedWeek · Aruba · Key West · St. John · checks every {{ check_hours }} hours{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
 
 {% macro stay_row(s, show_reason=False) %}
 <tr>
@@ -16,91 +24,258 @@
     <strong class="low">{{ s.price_night | money('USD') }}</strong><span class="muted small">/night</span>
     {% if s.total_price %}<div class="muted small">{{ s.total_price | money('USD') }} total</div>{% endif %}
   </td>
-  <td>{{ 'RedWeek' if s.source == 'redweek' else 'Koala' }}</td>
+  <td>{{ source_labels[s.source] }}</td>
   <td><a class="btn secondary btn-sm" href="{{ s.url }}" target="_blank" rel="noopener">View</a></td>
 </tr>
 {% endmacro %}
 
 {% block content %}
-<p class="breadcrumb"><a href="/">← All trips</a></p>
-
 <section class="hero">
   <div class="hero-title-block">
     <h1 class="hero-title">Caribbean Getaways</h1>
-    <p class="hero-subtitle">Koala + RedWeek timeshare rentals</p>
+    <p class="hero-subtitle">Island Hopping • Aruba · Key West · St. John</p>
   </div>
-  <form action="/getaways/check" method="post">
-    <button type="submit" class="btn secondary" {% if running %}disabled{% endif %}>
-      {% if running %}Checking…{% else %}Check now{% endif %}
+  <form action="/getaways/check" method="post" id="check-getaways-form">
+    <button type="submit" class="btn secondary" id="check-getaways-btn" {% if running %}disabled{% endif %}>
+      {% if running %}Checking…{% else %}Check all now{% endif %}
     </button>
   </form>
 </section>
 
-{% if request.query_params.get('checking') %}
-<div class="banner ok">Checking both sites now — takes a minute or two. Refresh to see results.</div>
+{% if request.query_params.get('checking') or running %}
+<div class="banner ok" id="check-flash">Checking Koala and RedWeek for every resort… this page refreshes when it's done.</div>
 {% elif request.query_params.get('busy') %}
-<div class="banner warn">A check is already running — refresh in a minute.</div>
+<div class="banner warn">A check is already running — give it a minute.</div>
 {% endif %}
 
-<section class="card getaway-rules">
-  <div class="rule"><span class="label">When</span><strong>{{ season_start.strftime('%b %-d') }} – {{ season_end.strftime('%b %-d, %Y') }}</strong></div>
-  <div class="rule"><span class="label">Check-in</span><strong>Thu, Fri or Sat</strong></div>
-  <div class="rule"><span class="label">Length</span><strong>3–4 nights</strong></div>
-  <div class="rule"><span class="label">Price</span><strong>Under {{ max_price | money('USD') }}/night</strong><span class="muted small">listed rate, before fees</span></div>
-  <div class="rule"><span class="label">Last checked</span><strong>{{ last_checked | fmt_last_checked }}</strong><span class="muted small">every {{ check_hours }} hours · email on new matches</span></div>
+<section class="trip-banner">
+  <div class="card countdown-card">
+    <p class="eyebrow">Countdown to the season</p>
+    <h2>{{ countdown_title }}</h2>
+    <div class="countdown-grid" id="countdown" data-departure="{{ countdown_iso }}">
+      <div class="countdown-unit"><span class="num" data-unit="days">—</span><span class="unit-label">Days</span></div>
+      <div class="countdown-unit"><span class="num" data-unit="hours">—</span><span class="unit-label">Hours</span></div>
+      <div class="countdown-unit"><span class="num" data-unit="mins">—</span><span class="unit-label">Mins</span></div>
+      <div class="countdown-unit"><span class="num" data-unit="secs">—</span><span class="unit-label">Secs</span></div>
+    </div>
+    <p class="countdown-meta">
+      Season: <strong>{{ season_start.strftime('%b %-d') }} – {{ season_end.strftime('%b %-d, %Y') }}</strong>
+      · Thu/Fri/Sat check-in · 3–4 nights · under {{ max_price | money('USD') }}/night
+    </p>
+  </div>
+
+  <div class="card highlights-card">
+    <p class="eyebrow">Resorts we're watching</p>
+    <h2>Caribbean sun awaits</h2>
+    <ul class="highlights-list">
+      <li><span class="dot"></span><span>Aruba — Marriott's Surf Club &amp; Ocean Club</span></li>
+      <li><span class="dot"></span><span>Key West — Hyatt Sunset Harbor, Beach House &amp; Windward Pointe</span></li>
+      <li><span class="dot"></span><span>Key West — The Galleon Resort &amp; Marina</span></li>
+      <li><span class="dot"></span><span>St. John — Westin St. John Resort Villas</span></li>
+    </ul>
+    <p class="highlights-tagline">“Aruba, Key West, and St. John await!”</p>
+  </div>
 </section>
 
-<section class="card table-wrap">
-  <h2>Matches <span class="pill {% if matches %}ok{% else %}muted-pill{% endif %}">{{ matches | length }}</span></h2>
+{% if not email_ok %}
+<div class="banner warn">
+  Email alerts are not set up yet. <a href="/settings">Open Settings</a> to get notified about new matches.
+</div>
+{% endif %}
+
+<section class="section-head">
+  <h2>Tracked rental sites</h2>
+  <span class="muted">{{ sources|length }} sources</span>
+</section>
+
+<div class="cruise-grid rental-grid">
+  {% for src in sources %}
+  {% set hist = src.hist %}
+  <article class="cruise-card card">
+    <div class="cruise-card-top">
+      <h3><a class="cruise-card-title" href="{{ src.home }}" target="_blank" rel="noopener">{{ src.label }}</a></h3>
+      <span class="pill ok">Watching</span>
+    </div>
+    <div class="price-row">
+      <div>
+        <div class="label">Cheapest</div>
+        <div class="price">{{ src.current | money('USD') }}</div>
+      </div>
+      <div>
+        <div class="label">Previous</div>
+        <div class="price-sm">{{ src.previous | money('USD') }}</div>
+      </div>
+      <div>
+        <div class="label">Lowest</div>
+        <div class="price-sm low">{{ src.lowest | money('USD') }}</div>
+      </div>
+    </div>
+    <div class="price-cabin" title="Resort with the cheapest in-season nightly rate">
+      {% if src.resort %}per night · {{ src.resort }}{% else %}&nbsp;{% endif %}
+    </div>
+    {% if src.previous and src.current and src.current < src.previous %}
+      <div class="delta down">↓ dropped {{ ((src.previous - src.current) / src.previous * 100) | round(1) }}%</div>
+    {% elif src.previous and src.current and src.current > src.previous %}
+      <div class="delta up">↑ rose {{ ((src.current - src.previous) / src.previous * 100) | round(1) }}%</div>
+    {% else %}
+      <div class="delta flat">no change</div>
+    {% endif %}
+
+    <a class="benchmark-row" href="#matches" title="See matches and close calls">
+      <span class="benchmark-tag">Your Rules</span>
+      <span class="benchmark-text">
+        <strong>{{ src.matches }}</strong> match{% if src.matches != 1 %}es{% endif %}
+        &middot; {{ src.near }} close call{% if src.near != 1 %}s{% endif %}
+      </span>
+      <span class="benchmark-diff {% if src.current and src.current < max_price %}under{% else %}over{% endif %}">
+        {% if src.current %}
+          {% if src.current < max_price %}under{% else %}+{{ (src.current - max_price) | money('USD') }} over{% endif %}
+        {% endif %}
+      </span>
+      <span class="benchmark-go" aria-hidden="true">›</span>
+    </a>
+
+    <div class="meta">
+      Last checked: {{ src.last_checked | fmt_last_checked }}
+      {% if src.errors %}<span class="error-text"> · {{ src.errors|length }} resort{% if src.errors|length != 1 %}s{% endif %} couldn't be read</span>{% endif %}
+    </div>
+
+    <div class="price-history">
+      <div class="price-history-head">
+        <span class="price-history-title">Price History</span>
+        <span class="price-history-count">{{ hist|length }} reading{% if hist|length != 1 %}s{% endif %}</span>
+      </div>
+      {% if hist|length >= 1 %}
+      <div class="chart-wrap">
+        <canvas class="hist-chart" height="120" data-history='{{ hist | tojson }}' data-currency="USD"></canvas>
+      </div>
+      <ul class="price-timeline">
+        {% for h in hist|reverse %}
+          {% if loop.index <= 6 %}
+          <li class="price-timeline-item">
+            <span class="tl-dot"></span>
+            <span class="tl-date">📅 {{ h.label }}</span>
+            <span class="tl-price">{{ h.price | money('USD') }}</span>
+          </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="price-history-empty">No history yet — it starts with the next check.</p>
+      {% endif %}
+    </div>
+
+    <div class="cruise-card-footer">
+      <a class="btn secondary btn-sm" href="{{ src.home }}" target="_blank" rel="noopener">Open {{ src.label }}</a>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+{# Cheapest by resort: the same aligned matrix as Tahiti's cabin strip —
+   resorts across the top, one row per site. #}
+<article class="card cruise-card-cabin cabin-strip">
+  <div class="cabin-strip-head">
+    <h3>Cheapest by Resort</h3>
+    <span class="pill ok">{{ season_start.strftime('%b') }}–{{ season_end.strftime('%b %Y') }} &middot; per night</span>
+    <div class="cabin-legend">
+      <span class="cabin-legend-item"><i class="cabin-legend-dot primary"></i>RedWeek</span>
+      <span class="cabin-legend-item"><i class="cabin-legend-dot compare"></i>Koala</span>
+    </div>
+    <div class="cabin-strip-meta">
+      <span class="cabin-strip-checked">{{ last_checked | fmt_last_checked }}</span>
+    </div>
+  </div>
+
+  <div class="cabin-matrix-wrap">
+    <div class="cabin-matrix resort-matrix" style="--cabin-cols: {{ resort_cols | length }}">
+      <span class="cm-corner"></span>
+      {% for col in resort_cols %}
+      <span class="cm-head" title="{{ col.name }}">{{ col.short }}</span>
+      {% endfor %}
+
+      {% for src in ['redweek', 'koala'] %}
+      <span class="cm-label{% if src == 'koala' %} compare{% endif %}">{{ source_labels[src] }}</span>
+      {% for col in resort_cols %}
+      {% set st = col.cells[src] %}
+      <span class="cm-val{% if src == 'koala' %} compare{% endif %}{% if st is none or st.cheapest_price is none %} missing{% elif st.cheapest_price < max_price %} deal{% endif %}"
+            title="{{ col.name }} on {{ source_labels[src] }}{% if st and st.last_error %} — couldn't be read{% endif %}">
+        {%- if st is none or st.cheapest_price is none -%}&mdash;{%- else -%}${{ '%.0f' | format(st.cheapest_price) }}{%- endif -%}
+      </span>
+      {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <p class="cabin-strip-foot">
+    {% if best_overall %}
+    Cheapest overall:
+    <span class="cabin-delta {% if best_overall.cheapest_price < max_price %}down{% else %}up{% endif %}">${{ '%.0f' | format(best_overall.cheapest_price) }}</span>
+    /night at {{ best_overall.resort }} on {{ source_labels[best_overall.source] }}
+    &middot; any length or check-in day &middot; green = under {{ max_price | money('USD') }}.
+    {% else %}
+    No prices yet — the first check runs shortly.
+    {% endif %}
+  </p>
+</article>
+
+<section class="section-head" id="matches" style="margin-top:2rem">
+  <h2>Matches</h2>
+  <span class="muted">Thu/Fri/Sat check-in · 3–4 nights · under {{ max_price | money('USD') }}/night</span>
+</section>
+<div class="card table-wrap">
   {% if matches %}
   <table>
     <thead><tr><th>Resort</th><th>Dates</th><th class="num">Price</th><th>Site</th><th></th></tr></thead>
     <tbody>{% for s in matches %}{{ stay_row(s) }}{% endfor %}</tbody>
   </table>
   {% else %}
-  <p class="muted">Nothing meets every rule right now. You'll get an email the moment something does.</p>
+  <p class="muted" style="margin:0">Nothing meets every rule right now. You'll get an email the moment something does.</p>
   {% endif %}
-</section>
+</div>
 
-<section class="card table-wrap">
-  <h2>Close calls <span class="pill muted-pill">{{ near | length }}</span></h2>
-  <p class="muted">In season and under {{ max_price | money('USD') }}/night, but the length or check-in day is off.
-    Owners will sometimes split a week if you ask.</p>
+<section class="section-head">
+  <h2>Close calls</h2>
+  <span class="muted">In season and under {{ max_price | money('USD') }}/night, but the length or check-in day is off</span>
+</section>
+<div class="card table-wrap">
   {% if near %}
   <table>
     <thead><tr><th>Resort</th><th>Dates</th><th class="num">Price</th><th>Site</th><th></th></tr></thead>
     <tbody>{% for s in near %}{{ stay_row(s, True) }}{% endfor %}</tbody>
   </table>
   {% else %}
-  <p class="muted">None right now.</p>
+  <p class="muted" style="margin:0">None right now. Owners will sometimes split a week if you ask, so these are worth a look when they appear.</p>
   {% endif %}
-</section>
+</div>
+{% endblock %}
 
-<section class="card table-wrap">
-  <h2>Cheapest in season, by resort</h2>
-  <p class="muted">Lowest nightly rate listed {{ season_start.strftime('%b') }}–{{ season_end.strftime('%b %Y') }}, any length or day — shows how close each resort is to your price.</p>
-  <table>
-    <thead><tr><th>Resort</th><th class="num">RedWeek</th><th class="num">Koala</th></tr></thead>
-    <tbody>
-      {% for r in resort_rows %}
-      <tr>
-        <td><strong>{{ r.name }}</strong><div class="muted small">{{ r.area }}</div></td>
-        {% for st in (r.redweek, r.koala) %}
-        <td class="num">
-          {% if st is none %}
-            <span class="muted">Not checked yet</span>
-          {% elif st.last_error %}
-            <span class="error-text" title="{{ st.last_error }}">Couldn't check</span>
-          {% elif st.cheapest_price is not none %}
-            <span class="{% if st.cheapest_price < max_price %}low{% endif %}">{{ st.cheapest_price | money('USD') }}</span><span class="muted small">/night</span>
-          {% else %}
-            <span class="muted">No stays listed</span>
-          {% endif %}
-        </td>
-        {% endfor %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
+{% block scripts %}
+<script src="/static/countdown.js?v={{ static_version() }}"></script>
+<script src="/static/hist-chart.js?v={{ static_version() }}"></script>
+<script>
+(function () {
+  const form = document.getElementById('check-getaways-form');
+  const btn = document.getElementById('check-getaways-btn');
+  if (form && btn) {
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+    });
+  }
+  // While a check runs, poll until it finishes, then reload with fresh results
+  if (document.getElementById('check-flash') && /checking=1/.test(location.search + '{{ "checking=1" if running else "" }}')) {
+    const iv = setInterval(async function () {
+      try {
+        const r = await fetch('/api/getaways/status', { cache: 'no-store' });
+        const s = await r.json();
+        if (!s.running) {
+          clearInterval(iv);
+          window.location.replace('/getaways');
+        }
+      } catch (e) { /* keep polling */ }
+    }, 3000);
+  }
+})();
+</script>
 {% endblock %}

@@ -25,7 +25,7 @@ from datetime import date, datetime, timedelta, timezone
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
-from app.models import GetawayListing, GetawayResortStatus
+from app.models import GetawayListing, GetawayPriceHistory, GetawayResortStatus
 
 logger = logging.getLogger(__name__)
 
@@ -37,42 +37,49 @@ SEASON_MONTHS = (1, 3)  # January through March
 RESORTS = [
     {
         "name": "Marriott's Aruba Surf Club",
+        "short": "Surf Club",
         "area": "Aruba",
         "koala": ("marriott-s-aruba-surf-club", 78),
         "redweek": ["P4872-marriotts-aruba-surf-club"],
     },
     {
         "name": "Marriott's Aruba Ocean Club",
+        "short": "Ocean Club",
         "area": "Aruba",
         "koala": ("marriotts-aruba-ocean-club", 54),
         "redweek": ["P148-marriotts-aruba-ocean-club"],
     },
     {
         "name": "Hyatt Sunset Harbor",
+        "short": "Sunset Harbor",
         "area": "Key West",
         "koala": ("hyatt-key-west-sunset-harbor", 491),
         "redweek": ["P1178-hyatt-sunset-harbor-resort"],
     },
     {
         "name": "Hyatt Beach House",
+        "short": "Beach House",
         "area": "Key West",
         "koala": ("hyatt-key-west-beach-house", 488),
         "redweek": ["P1177-hyatt-beach-house-resort"],
     },
     {
         "name": "Hyatt Windward Pointe",
+        "short": "Windward Pointe",
         "area": "Key West",
         "koala": ("hyatt-residence-club-key-west-windward-pointe", 197),
         "redweek": ["P5196-hyatt-windward-pointe-resort"],
     },
     {
         "name": "The Galleon Resort",
+        "short": "Galleon",
         "area": "Key West",
         "koala": ("the-galleon-resort", 659),
         "redweek": ["P1183-the-galleon-resort"],
     },
     {
         "name": "Westin St. John Resort Villas",
+        "short": "Westin",
         "area": "St. John",
         "koala": ("westin-st-john-resort-villas", 39),
         # RedWeek splits the Westin into its four timeshare sections
@@ -432,6 +439,46 @@ def _check_one(db: Session, resort: dict, source: str, start: date, end: date, n
     db.commit()
 
 
+SOURCES = ("redweek", "koala")
+SOURCE_LABELS = {"redweek": "RedWeek", "koala": "Koala"}
+
+
+def cheapest_by_source(db: Session) -> dict[str, GetawayResortStatus | None]:
+    """Each site's cheapest in-season resort right now."""
+    out: dict[str, GetawayResortStatus | None] = {}
+    for source in SOURCES:
+        rows = (
+            db.query(GetawayResortStatus)
+            .filter(
+                GetawayResortStatus.source == source,
+                GetawayResortStatus.cheapest_price.isnot(None),
+            )
+            .all()
+        )
+        out[source] = min(rows, key=lambda r: r.cheapest_price, default=None)
+    return out
+
+
+def _log_cheapest(db: Session, now: datetime) -> None:
+    """Append a price-history point per site when its cheapest rate changes."""
+    for source, best in cheapest_by_source(db).items():
+        if best is None:
+            continue
+        last = (
+            db.query(GetawayPriceHistory)
+            .filter(GetawayPriceHistory.source == source)
+            .order_by(GetawayPriceHistory.checked_at.desc())
+            .first()
+        )
+        if last is None or abs(last.price - best.cheapest_price) >= 0.01:
+            db.add(
+                GetawayPriceHistory(
+                    source=source, price=best.cheapest_price, resort=best.resort, checked_at=now
+                )
+            )
+    db.commit()
+
+
 def run_getaway_check(db: Session) -> dict:
     """Check every resort on both sites; email about brand-new matches."""
     if not _run_lock.acquire(blocking=False):
@@ -442,6 +489,7 @@ def run_getaway_check(db: Session) -> dict:
         for resort in RESORTS:
             for source in ("redweek", "koala"):
                 _check_one(db, resort, source, start, end, now)
+        _log_cheapest(db, now)
 
         new_matches = (
             db.query(GetawayListing)

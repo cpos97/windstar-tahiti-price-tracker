@@ -133,3 +133,15 @@ class GetawayResortStatus(Base):
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class GetawayPriceHistory(Base):
+    """Each site's cheapest in-season nightly rate over time (logged when it changes)."""
+
+    __tablename__ = "getaway_price_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    resort: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
