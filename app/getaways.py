@@ -1,4 +1,4 @@
-"""Watch Koala and RedWeek for short Caribbean timeshare stays.
+"""Watch Koala and RedWeek for short winter-getaway timeshare stays.
 
 The rules: a Thursday, Friday or Saturday check-in between January and March,
 3 or 4 nights, under $200/night (the listed nightly rate, before fees), at a

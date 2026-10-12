@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Trip Tracker{% endblock %}
 {% block body_class %}theme-palms{% endblock %}
-{% block footer_text %}Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 6 h · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Caribbean photo: Navin75</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
+{% block footer_text %}Tahiti cruise checked every {{ check_interval | default(60) }} min · Getaways every 6 h · <a class="photo-credit" href="https://commons.wikimedia.org/wiki/File:Trunk_Bay,_St._John_USVI.jpg" target="_blank" rel="noopener">Winter Getaway photo: Navin75</a> (<a class="photo-credit" href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>){% endblock %}
 
 {% block content %}
 {# Palm silhouettes: one shape, drawn twice (mirrored on the right) #}
@@ -57,7 +57,7 @@
     <span class="tile-icon" aria-hidden="true">🏝️</span>
     <span class="tile-body">
       <span class="tile-kicker">Vacation rentals · {{ getaway_season }}</span>
-      <span class="tile-title">Caribbean Getaways</span>
+      <span class="tile-title">Winter Getaway</span>
       <span class="tile-stats">
         <span class="tile-chip">{{ getaway_matches }} match{% if getaway_matches != 1 %}es{% endif %}</span>
         {% if getaway_cheapest %}

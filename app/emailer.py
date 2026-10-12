@@ -702,7 +702,7 @@ def send_getaway_matches_email(matches: list) -> tuple[bool, str]:
     <tr><td align="center" style="padding:32px 16px;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:18px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
         <tr><td style="background:#0A3D5C;padding:26px 28px;">
-          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#7FDBDA;">Caribbean Getaways</p>
+          <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#7FDBDA;">Winter Getaway</p>
           <h1 style="margin:0;font-family:Georgia,serif;font-size:22px;color:#FFFFFF;font-weight:normal;">{escape(subject)}</h1>
         </td></tr>
         <tr><td style="padding:20px 18px 8px 18px;">

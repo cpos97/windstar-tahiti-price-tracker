@@ -345,7 +345,7 @@ def trips_home(request: Request, db: DbDep):
 
 @app.get("/getaways", response_class=HTMLResponse)
 def getaways_page(request: Request, db: DbDep):
-    """Caribbean Getaways dashboard — laid out like the Tahiti one."""
+    """Winter Getaway dashboard — laid out like the Tahiti one."""
     start, end = getaways.season_window()
     today = date.today()
     if today < start:
