@@ -109,18 +109,24 @@ tail -f ~/cruise-price-tracker/data/tracker-server.log
 
 ## Custom domain + HTTPS (replaces the ngrok tunnel)
 
-The site is served directly from the VM at **https://postmatahiti.duckdns.org**
+The site is served directly from the VM at **https://postmatriptracker.duckdns.org**
 via Caddy, with an automatic Let's Encrypt certificate. The ngrok tunnel
 (`cruise-tunnel.service`) is disabled — no more click-through interstitial.
 
 Pieces involved:
 
-- **DNS**: DuckDNS subdomain `postmatahiti` → the VM's public IP.
+- **DNS**: DuckDNS subdomains `postmatriptracker` (current) and `postmatahiti`
+  (the original address) → the VM's public IP. Caddy permanently redirects
+  the old address to the same path on the new one, so links in earlier
+  emails keep working.
 - **`~/duckdns/duck.sh`** (cron, every 5 min): re-points DuckDNS at whatever
   IP the VM currently has. Oracle public IPs are *ephemeral* and can change
   if the instance is stopped/started, which would otherwise break the site.
-- **`/etc/caddy/Caddyfile`**: terminates TLS, reverse-proxies to
-  `127.0.0.1:8765`. Caddy renews the cert on its own.
+- **`/etc/caddy/Caddyfile`**: terminates TLS, reverse-proxies
+  `postmatriptracker.duckdns.org` to `127.0.0.1:8765` and redirects
+  `postmatahiti.duckdns.org`. Caddy renews both certs on its own.
+- **`DASHBOARD_URL`** in `.env` is the link used in alert emails — keep it on
+  the current address.
 - **Firewall, two layers** — both are required:
   1. Host `iptables` (persisted via `netfilter-persistent`)
   2. OCI VCN security list ingress rules for TCP 80 and 443
